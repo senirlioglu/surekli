@@ -147,6 +147,27 @@ def fetch_ic_hirsizlik_data(donemler: List[str]) -> List[dict]:
     return fetch_data_for_periods(donemler, columns=columns)
 
 
+# ==================== BACKWARD COMPATIBILITY ALIASES ====================
+# bootstrap.py bu eski isimleri kullanıyor
+def load_raw_data(client, donemler: List[str], satis_muduru: Optional[str] = None, batch_size: int = 1000) -> pd.DataFrame:
+    """Backward compatibility - bootstrap.py için"""
+    columns = '*'
+    all_data = fetch_data_for_periods(donemler, satis_muduru, columns)
+    if all_data:
+        return pd.DataFrame(all_data)
+    return pd.DataFrame()
+
+
+def load_periods(client) -> List[str]:
+    """Backward compatibility - bootstrap.py için"""
+    return fetch_periods()
+
+
+def load_sms(client) -> List[str]:
+    """Backward compatibility - bootstrap.py için"""
+    return fetch_sms()
+
+
 def fetch_envanter_serisi(magaza_kodu: str, malzeme_kodu: str) -> List[dict]:
     """
     Mağaza+ürün için envanter serisini getir - PURE DATA döner.
