@@ -134,10 +134,12 @@ def tespit_supheli_urun(iptal_satir_miktari, fark_miktari, satis_fiyati, min_fiy
     İç hırsızlık şüphesi olan ürünü tespit et.
 
     Mantık: Personel ürünü satıyor, parayı alıyor, sonra satırı iptal ediyor.
-    Bu durumda: iptal_satir_miktari + fark_miktari ≈ 0
+    Formül: fark - iptal = 0 ise ÇOK YÜKSEK risk
+
+    Örnek: fark = -5, iptal = -4 → fark - iptal = -1 → 0'a yakın = YÜKSEK
 
     Args:
-        iptal_satir_miktari: İptal edilen satır miktarı (pozitif)
+        iptal_satir_miktari: İptal edilen satır miktarı
         fark_miktari: Envanter farkı (negatif = kayıp)
         satis_fiyati: Ürün satış fiyatı
         min_fiyat: Minimum fiyat eşiği (default 100 TL)
@@ -149,14 +151,19 @@ def tespit_supheli_urun(iptal_satir_miktari, fark_miktari, satis_fiyati, min_fiy
     if satis_fiyati < min_fiyat:
         return {'supheli': False, 'risk': None, 'fark': None}
 
-    # İptal yoksa veya fark pozitifse şüpheli değil
-    if iptal_satir_miktari <= 0 or fark_miktari >= 0:
+    # Sadece fark negatif olanlara bak (kayıp var)
+    if fark_miktari >= 0:
         return {'supheli': False, 'risk': None, 'fark': None}
 
-    # Toplam: iptal + fark (iptal pozitif, fark negatif)
-    # Eğer birbirini dengeliyorsa şüpheli
-    toplam = iptal_satir_miktari + fark_miktari
-    fark_mutlak = abs(toplam)
+    # İptal yoksa şüpheli değil
+    if iptal_satir_miktari == 0:
+        return {'supheli': False, 'risk': None, 'fark': None}
+
+    # Formül: fark - iptal
+    # fark = -5, iptal = -4 → sonuc = -5 - (-4) = -1
+    # fark = -5, iptal = -5 → sonuc = -5 - (-5) = 0 (tam eşleşme)
+    sonuc = fark_miktari - iptal_satir_miktari
+    fark_mutlak = abs(sonuc)
 
     if fark_mutlak == 0:
         return {'supheli': True, 'risk': 'ÇOK YÜKSEK', 'fark': 0}
