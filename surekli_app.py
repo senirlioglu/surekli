@@ -494,7 +494,7 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
     col_islem_no = 'İşlem Numarası'
     col_kasa = 'Kasa numarası - Anahtar'
 
-    # Sütunlar yoksa index ile dene
+    # Sütunlar yoksa index ile dene veya benzer isim ara
     cols = df_iptal.columns.tolist()
     if col_magaza not in cols and len(cols) > 7:
         col_magaza = cols[7]
@@ -506,6 +506,12 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
         col_saat = cols[31]
     if col_islem_no not in cols and len(cols) > 36:
         col_islem_no = cols[36]
+
+    # Kasa sütunu için esnek arama (tam eşleşme yoksa "Kasa" içeren sütun bul)
+    if col_kasa not in cols:
+        kasa_cols = [c for c in cols if 'Kasa' in c or 'kasa' in c]
+        if kasa_cols:
+            col_kasa = kasa_cols[0]
 
     # Kodları temizle
     def clean_code(x):
@@ -533,7 +539,9 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
         saat = row.get(col_saat, '')
         miktar = row.get(col_miktar, 0)
         islem_no = row.get(col_islem_no, '')
-        kasa_no = row.get(col_kasa, '')
+        kasa_no_raw = row.get(col_kasa, '')
+        # Kasa numarasını temizle (1.0 → 1, nan → '')
+        kasa_no = str(kasa_no_raw).replace('.0', '').strip() if pd.notna(kasa_no_raw) else ''
 
         if malzeme not in result:
             result[malzeme] = []
@@ -606,7 +614,8 @@ def get_kamera_bilgisi(malzeme_kodu, iptal_data, kamera_limit_gun=15, yukleme_ta
 
         # Kasa numarası doğrudan Sheet'ten
         kasa_no = iptal.get('kasa_no', '')
-        kasa_str = f"Kasa:{kasa_no}" if kasa_no else ""
+        # 0, "0", boş veya nan değilse göster
+        kasa_str = f"Kasa:{kasa_no}" if kasa_no and kasa_no not in ['0', '0.0', 'nan', 'None'] else ""
 
         detaylar.append(f"{tarih} {saat} {kasa_str}".strip())
 
