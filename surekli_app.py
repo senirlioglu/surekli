@@ -1724,11 +1724,16 @@ def main_app():
                         # Yüksek sayım yapan ürünleri bul (sayim_miktari >= 50)
                         YUKSEK_SAYIM_ESIK = 50
 
-                        # Mevcut gm_df'den yüksek sayımlı ürünleri filtrele
+                        # Mevcut gm_df'den yüksek sayımlı ürünleri filtrele (duplicate'sız)
                         yuksek_sayim_urunler = []
+                        gorulmus = set()  # mağaza+ürün duplicate kontrolü
                         for _, row in gm_df.iterrows():
                             sayim_mik = row.get('sayim_miktari', 0)
                             if pd.notna(sayim_mik) and float(sayim_mik) >= YUKSEK_SAYIM_ESIK:
+                                mag_urun_key = f"{row.get('magaza_kodu', '')}_{row.get('malzeme_kodu', '')}"
+                                if mag_urun_key in gorulmus:
+                                    continue  # duplicate, atla
+                                gorulmus.add(mag_urun_key)
                                 yuksek_sayim_urunler.append({
                                     'magaza_kodu': str(row.get('magaza_kodu', '')),
                                     'magaza_adi': str(row.get('magaza_tanim', '')),
@@ -1768,6 +1773,10 @@ def main_app():
                                                 seri_str = " → ".join([f"{s['envanter']}.:{s['delta']:.0f}" for s in seri])
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
                                                 st.markdown(f"  📊 Son: **{son['delta']:.0f}** | Seri: {seri_str} | Fark: {fark_str}")
+                                            elif seri and len(seri) == 1:
+                                                fark_str = f":red[**₺{abs(seri[0]['fark_tutari']):,.0f}**]" if seri[0]['fark_tutari'] != 0 else "₺0"
+                                                st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                                st.markdown(f"  📊 {seri[0]['envanter']}. Sayım: {seri[0]['kumulatif']:.0f} | Fark: {fark_str}")
                                             else:
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
                                                 st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
@@ -1799,6 +1808,10 @@ def main_app():
                                                 seri_str = " → ".join([f"{s['envanter']}.:{s['delta']:.0f}" for s in seri])
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
                                                 st.markdown(f"  📊 Son: **{son['delta']:.0f}** | Seri: {seri_str} | Fark: {fark_str}")
+                                            elif seri and len(seri) == 1:
+                                                fark_str = f":red[**₺{abs(seri[0]['fark_tutari']):,.0f}**]" if seri[0]['fark_tutari'] != 0 else "₺0"
+                                                st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                                st.markdown(f"  📊 {seri[0]['envanter']}. Sayım: {seri[0]['kumulatif']:.0f} | Fark: {fark_str}")
                                             else:
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
                                                 st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
