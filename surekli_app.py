@@ -579,6 +579,7 @@ def get_iptal_verisi_from_sheets():
         return pd.DataFrame()
 
 
+@st.cache_data(ttl=300, show_spinner=False)  # 5 dakika cache
 def get_envanter_serisi(magaza_kodu, malzeme_kodu):
     """Belirli mağaza+ürün için tüm envanter serisini getirir (delta hesabı için)"""
     if supabase is None:
@@ -586,7 +587,7 @@ def get_envanter_serisi(magaza_kodu, malzeme_kodu):
 
     try:
         result = supabase.table(TABLE_NAME).select(
-            'envanter_sayisi,sayim_miktari,envanter_donemi'
+            'envanter_sayisi,sayim_miktari,fark_tutari,envanter_donemi'
         ).eq('magaza_kodu', magaza_kodu).eq('malzeme_kodu', malzeme_kodu).order(
             'envanter_sayisi', desc=False
         ).execute()
@@ -597,17 +598,23 @@ def get_envanter_serisi(magaza_kodu, malzeme_kodu):
         # Delta hesapla
         seri = []
         onceki_kum = 0
+        onceki_fark = 0
         for kayit in result.data:
             env_sayisi = kayit.get('envanter_sayisi', 0) or 0
             kumulatif = float(kayit.get('sayim_miktari', 0) or 0)
+            fark_kum = float(kayit.get('fark_tutari', 0) or 0)
             delta = kumulatif - onceki_kum
+            fark_delta = fark_kum - onceki_fark
             seri.append({
                 'envanter': env_sayisi,
                 'delta': delta,
                 'kumulatif': kumulatif,
+                'fark_tutari': fark_delta,
+                'fark_kumulatif': fark_kum,
                 'donem': kayit.get('envanter_donemi', '')
             })
             onceki_kum = kumulatif
+            onceki_fark = fark_kum
 
         return seri
     except Exception as e:
@@ -1757,9 +1764,10 @@ def main_app():
                                             seri = get_envanter_serisi(urun['magaza_kodu'], urun['malzeme_kodu'])
                                             if seri and len(seri) > 1:
                                                 son = seri[-1]
+                                                fark_str = f":red[**₺{abs(son['fark_tutari']):,.0f}**]" if son['fark_tutari'] != 0 else "₺0"
                                                 seri_str = " → ".join([f"{s['envanter']}.:{s['delta']:.0f}" for s in seri])
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
-                                                st.caption(f"  📊 Son: **{son['delta']:.0f}** | Seri: {seri_str}")
+                                                st.markdown(f"  📊 Son: **{son['delta']:.0f}** | Seri: {seri_str} | Fark: {fark_str}")
                                             else:
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
                                                 st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
@@ -1787,9 +1795,10 @@ def main_app():
                                             seri = get_envanter_serisi(urun['magaza_kodu'], urun['malzeme_kodu'])
                                             if seri and len(seri) > 1:
                                                 son = seri[-1]
+                                                fark_str = f":red[**₺{abs(son['fark_tutari']):,.0f}**]" if son['fark_tutari'] != 0 else "₺0"
                                                 seri_str = " → ".join([f"{s['envanter']}.:{s['delta']:.0f}" for s in seri])
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
-                                                st.caption(f"  📊 Son: **{son['delta']:.0f}** | Seri: {seri_str}")
+                                                st.markdown(f"  📊 Son: **{son['delta']:.0f}** | Seri: {seri_str} | Fark: {fark_str}")
                                             else:
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
                                                 st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
@@ -1813,19 +1822,20 @@ def main_app():
                                 for mag_kodu, data in mag_sorted[:30]:
                                     with st.expander(f"🔢 **{mag_kodu}** {data['adi'][:25]} | {len(data['urunler'])} ürün | SM: {data['sm']} | BS: {data['bs']}"):
                                         for urun in sorted(data['urunler'], key=lambda x: x['sayim_miktari'], reverse=True)[:15]:
-                                            # Envanter serisini getir (lazy loading - expander açılınca)
+                                            # Envanter serisini getir (lazy loading - expander açılınca, cache'li)
                                             seri = get_envanter_serisi(urun['magaza_kodu'], urun['malzeme_kodu'])
                                             if seri and len(seri) > 1:
                                                 son = seri[-1]
+                                                fark_str = f":red[**₺{abs(son['fark_tutari']):,.0f}**]" if son['fark_tutari'] != 0 else "₺0"
                                                 st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
-                                                st.caption(f"  📊 Son Sayım: **{son['delta']:.0f}** | {son['envanter']}. Envanter | ₺{urun['satis_fiyati']:.0f}")
                                                 # Seri detayı
                                                 seri_str = " → ".join([f"{s['envanter']}.:{s['delta']:.0f}" for s in seri])
-                                                st.caption(f"  📈 Seri: {seri_str}")
+                                                st.markdown(f"  📊 Son: **{son['delta']:.0f}** | Seri: {seri_str} | Fark: {fark_str}")
                                             elif seri and len(seri) == 1:
                                                 # İlk kayıt - delta yok
+                                                fark_str = f":red[**₺{abs(seri[0]['fark_tutari']):,.0f}**]" if seri[0]['fark_tutari'] != 0 else "₺0"
                                                 st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
-                                                st.caption(f"  📊 {seri[0]['envanter']}. Sayım: {seri[0]['kumulatif']:.0f} (ilk kayıt) | ₺{urun['satis_fiyati']:.0f}")
+                                                st.markdown(f"  📊 {seri[0]['envanter']}. Sayım: {seri[0]['kumulatif']:.0f} (ilk kayıt) | Fark: {fark_str}")
                                             else:
                                                 # Seri bulunamadı
                                                 st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
