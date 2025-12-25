@@ -1567,26 +1567,26 @@ def main_app():
                 st.subheader("🔴 Risk Değerlendirme")
 
                 if gm_df is not None and len(gm_df) > 0:
-                    # Bölge toplamları (referans değerler)
-                    bolge_toplam_satis = gm_df['satis_hasilati'].sum()
-                    bolge_toplam_fark = gm_df['fark_tutari'].sum()
-                    bolge_toplam_fire = gm_df['fire_tutari'].sum()
-                    bolge_toplam_acik = bolge_toplam_fark + bolge_toplam_fire
-                    bolge_acik_oran = (bolge_toplam_acik / bolge_toplam_satis * 100) if bolge_toplam_satis else 0
-
                     # İç hırsızlık verisi çek (ürün bazlı, tuple for cache)
                     ic_df = get_ic_hirsizlik_data(tuple(selected_periods))
 
-                    # Bölge özet bilgisi
-                    st.markdown(f"**📊 Bölge Referans Değerleri:** Açık Oranı: **%{bolge_acik_oran:.2f}** | Satış: ₺{bolge_toplam_satis:,.0f} | Açık: ₺{bolge_toplam_acik:,.0f}")
-                    st.markdown("---")
-
-                    # ==================== TÜM RİSK VERİLERİNİ HESAPLA (SESSION_STATE CACHE) ====================
+                    # ==================== TÜM HESAPLAMALARI CACHE'LE ====================
                     period_key = tuple(selected_periods)
 
                     # Dönem değişmediyse cache'den al
                     if st.session_state.get("risk_cache_key") != period_key:
                         st.session_state["risk_cache_key"] = period_key
+
+                        # Bölge toplamları
+                        bolge_toplam_satis = gm_df['satis_hasilati'].sum()
+                        bolge_toplam_fark = gm_df['fark_tutari'].sum()
+                        bolge_toplam_fire = gm_df['fire_tutari'].sum()
+                        bolge_toplam_acik = bolge_toplam_fark + bolge_toplam_fire
+                        bolge_acik_oran = (bolge_toplam_acik / bolge_toplam_satis * 100) if bolge_toplam_satis else 0
+
+                        st.session_state["bolge_toplam_satis"] = bolge_toplam_satis
+                        st.session_state["bolge_toplam_acik"] = bolge_toplam_acik
+                        st.session_state["bolge_acik_oran"] = bolge_acik_oran
 
                         # SM verileri
                         sm_riskler = []
@@ -1657,6 +1657,13 @@ def main_app():
                     sm_riskler = st.session_state.get("sm_riskler", [])
                     bs_riskler = st.session_state.get("bs_riskler", [])
                     mag_riskler = st.session_state.get("mag_riskler", [])
+                    bolge_toplam_satis = st.session_state.get("bolge_toplam_satis", 0)
+                    bolge_toplam_acik = st.session_state.get("bolge_toplam_acik", 0)
+                    bolge_acik_oran = st.session_state.get("bolge_acik_oran", 0)
+
+                    # Bölge özet bilgisi
+                    st.markdown(f"**📊 Bölge Referans Değerleri:** Açık Oranı: **%{bolge_acik_oran:.2f}** | Satış: ₺{bolge_toplam_satis:,.0f} | Açık: ₺{bolge_toplam_acik:,.0f}")
+                    st.markdown("---")
 
                     # ==================== ANA SEKMELER: RİSK TİPİ ====================
                     risk_type_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık", "🔢 Yüksek Sayım", "📉 Kronik Açık", "🔥 Kronik Fire"])
