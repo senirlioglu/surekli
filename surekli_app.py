@@ -493,7 +493,7 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
     col_miktar = 'Miktar'
     col_islem_no = 'İşlem Numarası'
 
-    # Sütunlar yoksa index ile dene
+    # Sütunlar yoksa index ile dene veya benzer isim ara
     cols = df_iptal.columns.tolist()
     if col_magaza not in cols and len(cols) > 7:
         col_magaza = cols[7]
@@ -505,6 +505,13 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
         col_saat = cols[31]
     if col_islem_no not in cols and len(cols) > 36:
         col_islem_no = cols[36]
+
+    # Kasa sütununu dinamik bul ("Kasa" içeren ilk sütun)
+    col_kasa = None
+    for c in cols:
+        if 'kasa' in c.lower():
+            col_kasa = c
+            break
 
     # Kodları temizle
     def clean_code(x):
@@ -533,6 +540,13 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
         miktar = row.get(col_miktar, 0)
         islem_no = row.get(col_islem_no, '')
 
+        # Kasa numarasını oku ve temizle
+        kasa_no = ''
+        if col_kasa and col_kasa in row.index:
+            kasa_no_raw = row[col_kasa]
+            if pd.notna(kasa_no_raw):
+                kasa_no = str(kasa_no_raw).replace('.0', '').strip()
+
         if malzeme not in result:
             result[malzeme] = []
 
@@ -540,7 +554,8 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
             'tarih': tarih,
             'saat': saat,
             'miktar': miktar,
-            'islem_no': islem_no
+            'islem_no': islem_no,
+            'kasa_no': kasa_no
         })
 
     return result
@@ -601,15 +616,12 @@ def get_kamera_bilgisi(malzeme_kodu, iptal_data, kamera_limit_gun=15, yukleme_ta
         saat = str(iptal.get('saat', ''))[:8]
         islem_no = str(iptal.get('islem_no', ''))
 
-        # Kasa numarası (işlem no'nun 4-5. karakteri)
-        kasa_no = ""
-        if len(islem_no) >= 6:
-            try:
-                kasa_no = f"Kasa:{int(islem_no[4:6])}"
-            except:
-                kasa_no = ""
+        # Kasa numarası doğrudan Sheet'ten
+        kasa_no = iptal.get('kasa_no', '')
+        # 0, "0", boş veya nan değilse göster
+        kasa_str = f"Kasa:{kasa_no}" if kasa_no and kasa_no not in ['0', '0.0', 'nan', 'None'] else ""
 
-        detaylar.append(f"{tarih} {saat} {kasa_no}".strip())
+        detaylar.append(f"{tarih} {saat} {kasa_str}".strip())
 
     return {
         'bulundu': True,
