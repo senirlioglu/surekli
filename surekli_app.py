@@ -506,7 +506,7 @@ def get_gm_ozet_data(donemler):
             while True:
                 try:
                     result = supabase.table(TABLE_NAME).select(
-                        'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,depolama_kosulu,fark_tutari,fire_tutari,satis_hasilati'
+                        'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,depolama_kosulu,fark_tutari,fire_tutari,satis_hasilati,sayim_miktari,envanter_sayisi,malzeme_kodu,malzeme_tanimi,satis_fiyati'
                     ).eq(
                         'envanter_donemi', donem
                     ).limit(batch_size).offset(offset).execute()
@@ -1682,21 +1682,21 @@ def main_app():
                         # Yüksek sayım yapan ürünleri bul (sayim_miktari >= 50)
                         YUKSEK_SAYIM_ESIK = 50
 
-                        # Mevcut df'den yüksek sayımlı ürünleri filtrele
+                        # Mevcut gm_df'den yüksek sayımlı ürünleri filtrele
                         yuksek_sayim_urunler = []
-                        for _, row in df.iterrows():
-                            sayim_mik = row.get('Sayım Miktarı', 0)
+                        for _, row in gm_df.iterrows():
+                            sayim_mik = row.get('sayim_miktari', 0)
                             if pd.notna(sayim_mik) and float(sayim_mik) >= YUKSEK_SAYIM_ESIK:
                                 yuksek_sayim_urunler.append({
-                                    'magaza_kodu': str(row.get('Mağaza Kodu', '')),
-                                    'magaza_adi': str(row.get('Mağaza Tanım', '')),
-                                    'sm': str(row.get('Satış Müdürü', '')),
-                                    'bs': str(row.get('Bölge Sorumlusu', '')),
-                                    'malzeme_kodu': str(row.get('Malzeme Kodu', '')),
-                                    'malzeme_adi': str(row.get('Malzeme Tanımı', ''))[:40],
+                                    'magaza_kodu': str(row.get('magaza_kodu', '')),
+                                    'magaza_adi': str(row.get('magaza_tanim', '')),
+                                    'sm': str(row.get('satis_muduru', '')),
+                                    'bs': str(row.get('bolge_sorumlusu', '')),
+                                    'malzeme_kodu': str(row.get('malzeme_kodu', '')),
+                                    'malzeme_adi': str(row.get('malzeme_tanimi', ''))[:40] if row.get('malzeme_tanimi') else '',
                                     'sayim_miktari': float(sayim_mik),
-                                    'envanter_sayisi': int(row.get('Envanter Sayisi', 0)) if pd.notna(row.get('Envanter Sayisi')) else 0,
-                                    'satis_fiyati': float(row.get('Satış Fiyatı', 0)) if pd.notna(row.get('Satış Fiyatı')) else 0
+                                    'envanter_sayisi': int(row.get('envanter_sayisi', 0)) if pd.notna(row.get('envanter_sayisi')) else 0,
+                                    'satis_fiyati': float(row.get('satis_fiyati', 0)) if pd.notna(row.get('satis_fiyati')) else 0
                                 })
 
                         ys_sub_tabs = st.tabs(["👔 SM", "📋 BS", "🏪 Mağaza"])
