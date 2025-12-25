@@ -8,6 +8,11 @@ from openpyxl.utils import get_column_letter
 from datetime import datetime
 import json
 import os
+import sys
+
+# Modül yolunu ekle
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils.risk import hesapla_birim_risk, get_risk_seviyesi
 
 # ==================== SAYFA AYARI ====================
 st.set_page_config(
@@ -701,7 +706,7 @@ def main_app():
             r4.markdown('<div class="risk-temiz">🟢 TEMİZ: 0</div>', unsafe_allow_html=True)
 
             # Sekmeler
-            tabs = st.tabs(["👔 SM Özet", "📋 BS Özet", "🏪 Mağazalar", "📊 Top 10 Açık"])
+            tabs = st.tabs(["👔 SM Özet", "📋 BS Özet", "🏪 Mağazalar", "📊 Top 10 Açık", "🔴 Riskler"])
 
             with tabs[0]:
                 st.subheader("👔 Satış Müdürü Bazlı Özet")
@@ -1104,6 +1109,230 @@ def main_app():
 
                     for i, row in mag_top.iterrows():
                         st.write(f"**{row['magaza_kodu']}** - {row['magaza_tanim']}: ₺{row['Toplam Açık']:,.0f}")
+                else:
+                    st.info("📥 Veri bulunamadı")
+
+            with tabs[4]:
+                st.subheader("🔴 Risk Değerlendirme")
+
+                if gm_df is not None and len(gm_df) > 0:
+                    # Bölge toplamları (referans değerler)
+                    bolge_toplam_satis = gm_df['satis_hasilati'].sum()
+                    bolge_toplam_fark = gm_df['fark_tutari'].sum()
+                    bolge_toplam_fire = gm_df['fire_tutari'].sum()
+                    bolge_toplam_acik = bolge_toplam_fark + bolge_toplam_fire
+                    bolge_acik_oran = (bolge_toplam_acik / bolge_toplam_satis * 100) if bolge_toplam_satis else 0
+
+                    # Bölge özet bilgisi
+                    st.markdown(f"**📊 Bölge Referans Değerleri:** Açık Oranı: **%{bolge_acik_oran:.2f}** | Satış: ₺{bolge_toplam_satis:,.0f} | Açık: ₺{bolge_toplam_acik:,.0f}")
+                    st.markdown("---")
+
+                    # Alt sekmeler: SM / BS / Mağaza
+                    risk_tabs = st.tabs(["👔 SM Risk", "📋 BS Risk", "🏪 Mağaza Risk"])
+
+                    # ========== SM RİSK ==========
+                    with risk_tabs[0]:
+                        st.markdown("### 👔 Satış Müdürü Risk Sıralaması")
+
+                        if 'satis_muduru' in gm_df.columns:
+                            # SM bazlı grupla
+                            sm_risk_df = gm_df.groupby('satis_muduru').agg({
+                                'fark_tutari': 'sum',
+                                'fire_tutari': 'sum',
+                                'satis_hasilati': 'sum',
+                                'magaza_kodu': 'nunique'
+                            }).reset_index()
+
+                            # Her SM için risk hesapla
+                            sm_riskler = []
+                            for _, row in sm_risk_df.iterrows():
+                                sm_acik = row['fark_tutari'] + row['fire_tutari']
+                                sm_satis = row['satis_hasilati']
+
+                                risk = hesapla_birim_risk(
+                                    {'acik': sm_acik, 'satis': sm_satis},
+                                    bolge_toplam_acik,
+                                    bolge_toplam_satis
+                                )
+
+                                sm_riskler.append({
+                                    'SM': row['satis_muduru'],
+                                    'Mağaza': row['magaza_kodu'],
+                                    'Satış': sm_satis,
+                                    'Açık': sm_acik,
+                                    'Açık%': risk['birim_oran'],
+                                    'Katsayı': risk['katsayi'],
+                                    'Puan': risk['puan'],
+                                    'Seviye': risk['seviye'],
+                                    'emoji': risk['emoji'],
+                                    'detay': risk['detay']
+                                })
+
+                            # Puana göre sırala (yüksek puan = yüksek risk)
+                            sm_riskler = sorted(sm_riskler, key=lambda x: x['Puan'], reverse=True)
+
+                            # Göster
+                            for sm in sm_riskler:
+                                with st.expander(f"{sm['emoji']} **{sm['SM']}** | Puan: {sm['Puan']} | {sm['Seviye']} | Açık: %{sm['Açık%']:.2f} | Katsayı: {sm['Katsayı']:.2f}x"):
+                                    c1, c2, c3, c4 = st.columns(4)
+                                    with c1:
+                                        st.metric("Mağaza Sayısı", sm['Mağaza'])
+                                    with c2:
+                                        st.metric("Satış", f"₺{sm['Satış']:,.0f}")
+                                    with c3:
+                                        st.metric("Açık", f"₺{sm['Açık']:,.0f}")
+                                    with c4:
+                                        st.metric("Risk Puanı", sm['Puan'])
+
+                                    # Detay
+                                    st.markdown("**Risk Detayı:**")
+                                    detay = sm['detay']
+                                    if detay.get('pozitif_acik', 0) > 0:
+                                        st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
+                                    if detay.get('bolge_ortalama_ustu', 0) > 0:
+                                        st.info(f"📊 Bölge Ort. Üstü ({sm['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
+                        else:
+                            st.warning("SM verisi bulunamadı")
+
+                    # ========== BS RİSK ==========
+                    with risk_tabs[1]:
+                        st.markdown("### 📋 Bölge Sorumlusu Risk Sıralaması")
+
+                        if 'bolge_sorumlusu' in gm_df.columns:
+                            bs_df = gm_df[gm_df['bolge_sorumlusu'].notna() & (gm_df['bolge_sorumlusu'] != '')]
+
+                            if len(bs_df) > 0:
+                                # BS bazlı grupla
+                                bs_risk_df = bs_df.groupby('bolge_sorumlusu').agg({
+                                    'fark_tutari': 'sum',
+                                    'fire_tutari': 'sum',
+                                    'satis_hasilati': 'sum',
+                                    'magaza_kodu': 'nunique'
+                                }).reset_index()
+
+                                # Her BS için risk hesapla
+                                bs_riskler = []
+                                for _, row in bs_risk_df.iterrows():
+                                    bs_acik = row['fark_tutari'] + row['fire_tutari']
+                                    bs_satis = row['satis_hasilati']
+
+                                    risk = hesapla_birim_risk(
+                                        {'acik': bs_acik, 'satis': bs_satis},
+                                        bolge_toplam_acik,
+                                        bolge_toplam_satis
+                                    )
+
+                                    bs_riskler.append({
+                                        'BS': row['bolge_sorumlusu'],
+                                        'Mağaza': row['magaza_kodu'],
+                                        'Satış': bs_satis,
+                                        'Açık': bs_acik,
+                                        'Açık%': risk['birim_oran'],
+                                        'Katsayı': risk['katsayi'],
+                                        'Puan': risk['puan'],
+                                        'Seviye': risk['seviye'],
+                                        'emoji': risk['emoji'],
+                                        'detay': risk['detay']
+                                    })
+
+                                # Puana göre sırala
+                                bs_riskler = sorted(bs_riskler, key=lambda x: x['Puan'], reverse=True)
+
+                                # Göster
+                                for bs in bs_riskler:
+                                    with st.expander(f"{bs['emoji']} **{bs['BS']}** | Puan: {bs['Puan']} | {bs['Seviye']} | Açık: %{bs['Açık%']:.2f} | Katsayı: {bs['Katsayı']:.2f}x"):
+                                        c1, c2, c3, c4 = st.columns(4)
+                                        with c1:
+                                            st.metric("Mağaza Sayısı", bs['Mağaza'])
+                                        with c2:
+                                            st.metric("Satış", f"₺{bs['Satış']:,.0f}")
+                                        with c3:
+                                            st.metric("Açık", f"₺{bs['Açık']:,.0f}")
+                                        with c4:
+                                            st.metric("Risk Puanı", bs['Puan'])
+
+                                        # Detay
+                                        st.markdown("**Risk Detayı:**")
+                                        detay = bs['detay']
+                                        if detay.get('pozitif_acik', 0) > 0:
+                                            st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
+                                        if detay.get('bolge_ortalama_ustu', 0) > 0:
+                                            st.info(f"📊 Bölge Ort. Üstü ({bs['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
+                            else:
+                                st.warning("BS verisi bulunamadı")
+                        else:
+                            st.warning("BS sütunu bulunamadı")
+
+                    # ========== MAĞAZA RİSK ==========
+                    with risk_tabs[2]:
+                        st.markdown("### 🏪 Mağaza Risk Sıralaması")
+
+                        # Mağaza bazlı grupla
+                        mag_risk_df = gm_df.groupby(['magaza_kodu', 'magaza_tanim']).agg({
+                            'fark_tutari': 'sum',
+                            'fire_tutari': 'sum',
+                            'satis_hasilati': 'sum'
+                        }).reset_index()
+
+                        # Her mağaza için risk hesapla
+                        mag_riskler = []
+                        for _, row in mag_risk_df.iterrows():
+                            mag_acik = row['fark_tutari'] + row['fire_tutari']
+                            mag_satis = row['satis_hasilati']
+
+                            risk = hesapla_birim_risk(
+                                {'acik': mag_acik, 'satis': mag_satis},
+                                bolge_toplam_acik,
+                                bolge_toplam_satis
+                            )
+
+                            mag_riskler.append({
+                                'Kod': row['magaza_kodu'],
+                                'Mağaza': row['magaza_tanim'],
+                                'Satış': mag_satis,
+                                'Açık': mag_acik,
+                                'Açık%': risk['birim_oran'],
+                                'Katsayı': risk['katsayi'],
+                                'Puan': risk['puan'],
+                                'Seviye': risk['seviye'],
+                                'emoji': risk['emoji'],
+                                'detay': risk['detay']
+                            })
+
+                        # Puana göre sırala
+                        mag_riskler = sorted(mag_riskler, key=lambda x: x['Puan'], reverse=True)
+
+                        # Sadece riskli olanları göster (puan > 0)
+                        riskli_magazalar = [m for m in mag_riskler if m['Puan'] > 0]
+
+                        if riskli_magazalar:
+                            st.info(f"🔴 {len(riskli_magazalar)} mağazada risk tespit edildi")
+
+                            for mag in riskli_magazalar[:20]:  # İlk 20
+                                with st.expander(f"{mag['emoji']} **{mag['Kod']}** {mag['Mağaza']} | Puan: {mag['Puan']} | {mag['Seviye']} | Açık: %{mag['Açık%']:.2f}"):
+                                    c1, c2, c3, c4 = st.columns(4)
+                                    with c1:
+                                        st.metric("Satış", f"₺{mag['Satış']:,.0f}")
+                                    with c2:
+                                        st.metric("Açık", f"₺{mag['Açık']:,.0f}")
+                                    with c3:
+                                        st.metric("Katsayı", f"{mag['Katsayı']:.2f}x")
+                                    with c4:
+                                        st.metric("Risk Puanı", mag['Puan'])
+
+                                    # Detay
+                                    st.markdown("**Risk Detayı:**")
+                                    detay = mag['detay']
+                                    if detay.get('pozitif_acik', 0) > 0:
+                                        st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
+                                    if detay.get('bolge_ortalama_ustu', 0) > 0:
+                                        st.info(f"📊 Bölge Ort. Üstü ({mag['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
+
+                            if len(riskli_magazalar) > 20:
+                                st.caption(f"... ve {len(riskli_magazalar) - 20} mağaza daha")
+                        else:
+                            st.success("🟢 Riskli mağaza bulunamadı!")
+
                 else:
                     st.info("📥 Veri bulunamadı")
 
