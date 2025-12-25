@@ -961,35 +961,97 @@ def main_app():
                                         mag_kat[e] = {
                                             'satis': s, 'fark': kr['fark_tutari'], 'fire': kr['fire_tutari'],
                                             'acik': acik_kat,
+                                            'fark_pct': (kr['fark_tutari'] / s * 100) if s else 0,
+                                            'fire_pct': (kr['fire_tutari'] / s * 100) if s else 0,
                                             'acik_pct': (acik_kat / s * 100) if s else 0
                                         }
 
-                                # Kategori oranlarını string yap
-                                kat_parts = [f"{e}{mag_kat[e]['acik_pct']:.1f}" for e in ['🐓', '🥦', '🥖'] if e in mag_kat]
+                                # Kategori oranlarını renkli göster (en kötü kırmızı, en iyi yeşil)
+                                kat_parts = []
+                                for e in ['🐓', '🥦', '🥖']:
+                                    if e in mag_kat:
+                                        oran = mag_kat[e]['acik_pct']
+                                        # Renk: < -5 kırmızı, -2 ile -5 arası sarı, > -2 yeşil
+                                        if oran < -5:
+                                            kat_parts.append(f"🔴{e}{oran:.1f}%")
+                                        elif oran < -2:
+                                            kat_parts.append(f"🟡{e}{oran:.1f}%")
+                                        else:
+                                            kat_parts.append(f"🟢{e}{oran:.1f}%")
                                 kat_str = " ".join(kat_parts) if kat_parts else ""
 
-                                acik_emoji = "🔴" if mag['Açık%'] < -5 else "🟡" if mag['Açık%'] < -2 else "🟢"
-                                mag_title = f"{acik_emoji} **{mag_kodu}** {mag_tanim} | {kat_str} | Açık: {mag['Açık%']:.1f}%"
+                                # Risk seviyesine göre emoji
+                                acik_pct = mag['Açık%']
+                                if acik_pct < -5:
+                                    acik_emoji = "🔴"
+                                elif acik_pct < -2:
+                                    acik_emoji = "🟡"
+                                else:
+                                    acik_emoji = "🟢"
+
+                                mag_title = f"{acik_emoji} **{mag_kodu}** {mag_tanim} | {kat_str} | Açık: {acik_pct:.1f}%"
 
                                 with st.expander(mag_title):
-                                    # Özet metrikler
+                                    # Özet metrikler - oranlarla birlikte
+                                    satis = mag['satis_hasilati']
+                                    fark = mag['fark_tutari']
+                                    fire = mag['fire_tutari']
+                                    acik = mag['Açık']
+
+                                    fark_oran = (fark / satis * 100) if satis else 0
+                                    fire_oran = (fire / satis * 100) if satis else 0
+
                                     c1, c2, c3, c4 = st.columns(4)
                                     with c1:
-                                        st.metric("💰 Satış", f"₺{mag['satis_hasilati']:,.0f}")
+                                        st.metric("💰 Satış", f"₺{satis:,.0f}")
                                     with c2:
-                                        st.metric("📉 Fark", f"₺{mag['fark_tutari']:,.0f}")
+                                        st.metric("📉 Fark", f"₺{fark:,.0f}", f"%{fark_oran:.2f}")
                                     with c3:
-                                        st.metric("🔥 Fire", f"₺{mag['fire_tutari']:,.0f}")
+                                        st.metric("🔥 Fire", f"₺{fire:,.0f}", f"%{fire_oran:.2f}")
                                     with c4:
-                                        st.metric("📊 Açık", f"₺{mag['Açık']:,.0f}")
+                                        st.metric("📊 Açık", f"₺{acik:,.0f}", f"%{acik_pct:.2f}")
 
-                                    # Kategori detayları
+                                    # Kategori detayları - tablo formatında
                                     if mag_kat:
-                                        st.markdown("**Kategori Kırılımı:**")
+                                        st.markdown("---")
+                                        st.markdown("**📦 Kategori Bazlı Detay:**")
+
+                                        # Kategori tablosu için veri hazırla
+                                        kat_rows = []
+                                        kat_names = {'🐓': 'Et-Tavuk', '🥦': 'Meyve-Sebze', '🥖': 'Ekmek'}
                                         for e in ['🐓', '🥦', '🥖']:
                                             if e in mag_kat:
                                                 d = mag_kat[e]
-                                                st.write(f"{e} Satış: ₺{d['satis']:,.0f} | Fark: ₺{d['fark']:,.0f} | Fire: ₺{d['fire']:,.0f} | Açık: %{d['acik_pct']:.1f}")
+                                                kat_rows.append({
+                                                    'Kategori': f"{e} {kat_names.get(e, '')}",
+                                                    'Satış': f"₺{d['satis']:,.0f}",
+                                                    'Fark': f"₺{d['fark']:,.0f}",
+                                                    'Fark%': f"%{d['fark_pct']:.2f}",
+                                                    'Fire': f"₺{d['fire']:,.0f}",
+                                                    'Fire%': f"%{d['fire_pct']:.2f}",
+                                                    'Açık': f"₺{d['acik']:,.0f}",
+                                                    'Açık%': f"%{d['acik_pct']:.2f}"
+                                                })
+
+                                        if kat_rows:
+                                            kat_df = pd.DataFrame(kat_rows)
+                                            st.dataframe(kat_df, use_container_width=True, hide_index=True)
+
+                                        # Her kategori için mini özet kutuları
+                                        st.markdown("**📊 Kategori Oranları:**")
+                                        kat_cols = st.columns(len(mag_kat))
+                                        for idx, e in enumerate(['🐓', '🥦', '🥖']):
+                                            if e in mag_kat and idx < len(kat_cols):
+                                                with kat_cols[idx]:
+                                                    d = mag_kat[e]
+                                                    oran = d['acik_pct']
+                                                    if oran < -5:
+                                                        renk_class = "risk-kritik"
+                                                    elif oran < -2:
+                                                        renk_class = "risk-dikkat"
+                                                    else:
+                                                        renk_class = "risk-temiz"
+                                                    st.markdown(f'<div class="{renk_class}">{e} {kat_names.get(e, "")}<br>%{oran:.1f}</div>', unsafe_allow_html=True)
                 else:
                     st.warning("⚠️ Bölge Sorumlusu verisi bulunamadı")
                     st.markdown("""
