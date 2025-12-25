@@ -86,20 +86,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==================== SUPABASE BAĞLANTISI ====================
+supabase = None
 try:
     from supabase import create_client, Client
     SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", ""))
     SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", ""))
 
-    @st.cache_resource
-    def get_supabase_client():
-        if SUPABASE_URL and SUPABASE_KEY:
-            return create_client(SUPABASE_URL, SUPABASE_KEY)
-        return None
-
-    supabase = get_supabase_client()
-except:
-    supabase = None
+    if SUPABASE_URL and SUPABASE_KEY:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        st.sidebar.success("✅ Supabase bağlandı")
+    else:
+        st.sidebar.warning("⚠️ Supabase secrets eksik")
+except Exception as e:
+    st.sidebar.error(f"❌ Supabase hata: {e}")
 
 # ==================== SESSION STATE ====================
 if 'logged_in' not in st.session_state:
@@ -940,10 +939,57 @@ def main_app():
                             # Özet satırı
                             st.caption(f"💰 Satış: ₺{row['Satış']:,.0f} | 📉 Fark: ₺{row['Fark']:,.0f} | 🔥 Fire: ₺{row['Fire']:,.0f}")
 
-                            # Mağaza listesi
+                            # Mağaza listesi - her mağaza için kategori kırılımı
                             for _, mag in bs_magazalar.iterrows():
+                                mag_kodu = mag['magaza_kodu']
+                                mag_tanim = mag['magaza_tanim']
+
+                                # Bu mağazanın kategori kırılımını hesapla
+                                mag_df = bs_df[bs_df['magaza_kodu'] == mag_kodu]
+                                mag_kat = {}
+                                if 'depolama_kosulu' in mag_df.columns:
+                                    for _, kr in mag_df.groupby('depolama_kosulu').agg({
+                                        'fark_tutari': 'sum', 'fire_tutari': 'sum', 'satis_hasilati': 'sum'
+                                    }).reset_index().iterrows():
+                                        k = str(kr['depolama_kosulu'] or '').upper()
+                                        s = kr['satis_hasilati']
+                                        if 'ET' in k or 'TAVUK' in k: e = '🐓'
+                                        elif 'MEYVE' in k or 'SEBZE' in k: e = '🥦'
+                                        elif 'EKMEK' in k: e = '🥖'
+                                        else: continue
+                                        acik_kat = kr['fark_tutari'] + kr['fire_tutari']
+                                        mag_kat[e] = {
+                                            'satis': s, 'fark': kr['fark_tutari'], 'fire': kr['fire_tutari'],
+                                            'acik': acik_kat,
+                                            'acik_pct': (acik_kat / s * 100) if s else 0
+                                        }
+
+                                # Kategori oranlarını string yap
+                                kat_parts = [f"{e}{mag_kat[e]['acik_pct']:.1f}" for e in ['🐓', '🥦', '🥖'] if e in mag_kat]
+                                kat_str = " ".join(kat_parts) if kat_parts else ""
+
                                 acik_emoji = "🔴" if mag['Açık%'] < -5 else "🟡" if mag['Açık%'] < -2 else "🟢"
-                                st.write(f"{acik_emoji} **{mag['magaza_kodu']}** {mag['magaza_tanim']} | Açık: ₺{mag['Açık']:,.0f} ({mag['Açık%']:.1f}%)")
+                                mag_title = f"{acik_emoji} **{mag_kodu}** {mag_tanim} | {kat_str} | Açık: {mag['Açık%']:.1f}%"
+
+                                with st.expander(mag_title):
+                                    # Özet metrikler
+                                    c1, c2, c3, c4 = st.columns(4)
+                                    with c1:
+                                        st.metric("💰 Satış", f"₺{mag['satis_hasilati']:,.0f}")
+                                    with c2:
+                                        st.metric("📉 Fark", f"₺{mag['fark_tutari']:,.0f}")
+                                    with c3:
+                                        st.metric("🔥 Fire", f"₺{mag['fire_tutari']:,.0f}")
+                                    with c4:
+                                        st.metric("📊 Açık", f"₺{mag['Açık']:,.0f}")
+
+                                    # Kategori detayları
+                                    if mag_kat:
+                                        st.markdown("**Kategori Kırılımı:**")
+                                        for e in ['🐓', '🥦', '🥖']:
+                                            if e in mag_kat:
+                                                d = mag_kat[e]
+                                                st.write(f"{e} Satış: ₺{d['satis']:,.0f} | Fark: ₺{d['fark']:,.0f} | Fire: ₺{d['fire']:,.0f} | Açık: %{d['acik_pct']:.1f}")
                 else:
                     st.warning("⚠️ Bölge Sorumlusu verisi bulunamadı")
                     st.markdown("""
