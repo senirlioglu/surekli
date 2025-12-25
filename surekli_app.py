@@ -215,7 +215,7 @@ COLUMN_MAPPING = {
     'Malzeme Tanımı': 'malzeme_tanimi',
     'Satış Fiyatı': 'satis_fiyati',
     'Envanter Sayisi': 'envanter_sayisi',
-    # TÜM kümülatif alanlar - Excel'den gelen toplam değerler (_kum suffix)
+    # Kümülatif alanlar (16 alan) - Excel'den gelen toplam değerler
     'Sayım Miktarı': 'sayim_miktari_kum',
     'Sayım Tutarı': 'sayim_tutari_kum',
     'Kaydi Miktar': 'kaydi_miktar_kum',
@@ -230,15 +230,16 @@ COLUMN_MAPPING = {
     'Satış Hasılatı': 'satis_hasilati_kum',
     'İade Miktarı': 'iade_miktari_kum',
     'İade Tutarı': 'iade_tutari_kum',
-    'İptal Fişteki Miktar': 'iptal_fisteki_miktar_kum',
-    'İptal Fiş Tutarı': 'iptal_fis_tutari_kum',
-    'İptal GP Miktarı': 'iptal_gp_miktari_kum',
-    'İptal GP TUTARI': 'iptal_gp_tutari_kum',
     'İptal Satır Miktarı': 'iptal_satir_miktari_kum',
     'İptal Satır Tutarı': 'iptal_satir_tutari_kum',
+    # Kümülatif takibi gerekmeyen alanlar (doğrudan kaydet)
+    'İptal Fişteki Miktar': 'iptal_fisteki_miktar',
+    'İptal Fiş Tutarı': 'iptal_fis_tutari',
+    'İptal GP Miktarı': 'iptal_gp_miktari',
+    'İptal GP TUTARI': 'iptal_gp_tutari',
 }
 
-# Delta hesaplanacak kümülatif alanlar: (kümülatif_sütun, delta_sütun)
+# Delta hesaplanacak kümülatif alanlar (16 alan): (kümülatif_sütun, delta_sütun)
 KUMULATIF_ALANLAR = [
     ('sayim_miktari_kum', 'sayim_miktari'),
     ('sayim_tutari_kum', 'sayim_tutari'),
@@ -254,10 +255,6 @@ KUMULATIF_ALANLAR = [
     ('satis_hasilati_kum', 'satis_hasilati'),
     ('iade_miktari_kum', 'iade_miktari'),
     ('iade_tutari_kum', 'iade_tutari'),
-    ('iptal_fisteki_miktar_kum', 'iptal_fisteki_miktar'),
-    ('iptal_fis_tutari_kum', 'iptal_fis_tutari'),
-    ('iptal_gp_miktari_kum', 'iptal_gp_miktari'),
-    ('iptal_gp_tutari_kum', 'iptal_gp_tutari'),
     ('iptal_satir_miktari_kum', 'iptal_satir_miktari'),
     ('iptal_satir_tutari_kum', 'iptal_satir_tutari'),
 ]
