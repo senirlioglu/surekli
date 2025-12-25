@@ -1954,10 +1954,10 @@ def main_app():
                             st.session_state["kronik_acik_period_key"] = period_key
                             st.session_state["kronik_acik_urunler"] = None
 
-                        # Butonla hesaplama tetikle
-                        if st.button("📉 Kronik Açık Hesapla", key="btn_kronik_acik"):
+                        # Otomatik hesapla (cache'de yoksa)
+                        if st.session_state.get("kronik_acik_urunler") is None:
                             try:
-                                with st.spinner("Hesaplanıyor..."):
+                                with st.spinner("Kronik Açık hesaplanıyor..."):
                                     st.session_state["kronik_acik_urunler"] = _find_kronik_fast(gm_df, "fark_tutari", KRONIK_ESIK)
                             except Exception as e:
                                 st.error("Kronik Açık hesaplama hatası:")
@@ -1966,9 +1966,7 @@ def main_app():
 
                         kronik_acik_urunler = st.session_state.get("kronik_acik_urunler")
 
-                        if kronik_acik_urunler is None:
-                            st.info("📉 Kronik Açık hesaplamak için yukarıdaki butona tıklayın.")
-                        else:
+                        if kronik_acik_urunler is not None:
                             kronik_sub_tabs = st.tabs(["👔 SM", "📋 BS", "🏪 Mağaza"])
 
                             # ----- SM Kronik Açık -----
@@ -2068,10 +2066,10 @@ def main_app():
                             st.session_state["kronik_fire_period_key"] = period_key
                             st.session_state["kronik_fire_urunler"] = None
 
-                        # Butonla hesaplama tetikle
-                        if st.button("🔥 Kronik Fire Hesapla", key="btn_kronik_fire"):
+                        # Otomatik hesapla (cache'de yoksa)
+                        if st.session_state.get("kronik_fire_urunler") is None:
                             try:
-                                with st.spinner("Hesaplanıyor..."):
+                                with st.spinner("Kronik Fire hesaplanıyor..."):
                                     st.session_state["kronik_fire_urunler"] = _find_kronik_fast(gm_df, "fire_tutari", KRONIK_FIRE_ESIK)
                             except Exception as e:
                                 st.error("Kronik Fire hesaplama hatası:")
@@ -2080,9 +2078,7 @@ def main_app():
 
                         kronik_fire_urunler = st.session_state.get("kronik_fire_urunler")
 
-                        if kronik_fire_urunler is None:
-                            st.info("🔥 Kronik Fire hesaplamak için yukarıdaki butona tıklayın.")
-                        else:
+                        if kronik_fire_urunler is not None:
                             fire_sub_tabs = st.tabs(["👔 SM", "📋 BS", "🏪 Mağaza"])
 
                             # ----- SM Kronik Fire -----
