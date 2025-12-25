@@ -5,14 +5,17 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 import sys
 
 # Modül yolunu ekle
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from utils.risk import hesapla_birim_risk, get_risk_seviyesi
+from utils.risk import (
+    hesapla_birim_risk, get_risk_seviyesi,
+    hesapla_birim_risk_v2, tespit_supheli_urun
+)
 
 # ==================== SAYFA AYARI ====================
 st.set_page_config(
@@ -451,6 +454,223 @@ def get_onceki_envanter(magaza_kodu, malzeme_kodu, envanter_donemi, envanter_say
         return None
     except:
         return None
+
+
+# ==================== GOOGLE SHEETS KAMERA ENTEGRASYONU ====================
+IPTAL_SHEETS_ID = '1F4Th-xZ2n0jDyayy5vayIN2j-EGUzqw5Akd8mXQVh4o'
+IPTAL_SHEET_NAME = 'IptalVerisi'
+
+@st.cache_data(ttl=300)
+def get_iptal_verisi_from_sheets():
+    """Google Sheets'ten iptal verisini çeker (public sheet)"""
+    try:
+        csv_url = f'https://docs.google.com/spreadsheets/d/{IPTAL_SHEETS_ID}/gviz/tq?tqx=out:csv&sheet={IPTAL_SHEET_NAME}'
+        df = pd.read_csv(csv_url, encoding='utf-8')
+        df.columns = df.columns.str.strip()
+        return df
+    except Exception as e:
+        return pd.DataFrame()
+
+
+def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
+    """Belirli mağaza ve ürünler için iptal timestamp bilgilerini döner"""
+    df_iptal = get_iptal_verisi_from_sheets()
+
+    if df_iptal.empty:
+        return {}
+
+    # Sütun isimleri
+    col_magaza = 'Mağaza - Anahtar'
+    col_malzeme = 'Malzeme - Anahtar'
+    col_tarih = 'Tarih - Anahtar'
+    col_saat = 'Fiş Saati'
+    col_miktar = 'Miktar'
+    col_islem_no = 'İşlem Numarası'
+
+    # Sütunlar yoksa index ile dene
+    cols = df_iptal.columns.tolist()
+    if col_magaza not in cols and len(cols) > 7:
+        col_magaza = cols[7]
+    if col_malzeme not in cols and len(cols) > 17:
+        col_malzeme = cols[17]
+    if col_tarih not in cols and len(cols) > 3:
+        col_tarih = cols[3]
+    if col_saat not in cols and len(cols) > 31:
+        col_saat = cols[31]
+    if col_islem_no not in cols and len(cols) > 36:
+        col_islem_no = cols[36]
+
+    # Kodları temizle
+    def clean_code(x):
+        return str(x).strip().replace('.0', '')
+
+    df_iptal[col_magaza] = df_iptal[col_magaza].apply(clean_code)
+    df_iptal[col_malzeme] = df_iptal[col_malzeme].apply(clean_code)
+
+    # Mağaza filtrele
+    magaza_str = clean_code(magaza_kodu)
+    df_mag = df_iptal[df_iptal[col_magaza] == magaza_str]
+
+    if df_mag.empty:
+        return {}
+
+    malzeme_set = set(clean_code(m) for m in malzeme_kodlari)
+    result = {}
+
+    for _, row in df_mag.iterrows():
+        malzeme = clean_code(row[col_malzeme])
+        if malzeme not in malzeme_set:
+            continue
+
+        tarih = row.get(col_tarih, '')
+        saat = row.get(col_saat, '')
+        miktar = row.get(col_miktar, 0)
+        islem_no = row.get(col_islem_no, '')
+
+        if malzeme not in result:
+            result[malzeme] = []
+
+        result[malzeme].append({
+            'tarih': tarih,
+            'saat': saat,
+            'miktar': miktar,
+            'islem_no': islem_no
+        })
+
+    return result
+
+
+def get_kamera_bilgisi(malzeme_kodu, iptal_data, kamera_limit_gun=15):
+    """
+    Bir ürün için kamera bilgisini döner.
+    kamera_limit_gun: Bugünden geriye kaç gün bakılacak (default 15)
+    """
+    kamera_limit = datetime.now() - timedelta(days=kamera_limit_gun)
+
+    if malzeme_kodu not in iptal_data:
+        return {'bulundu': False, 'detay': '❌ İptal kaydı yok'}
+
+    iptaller = iptal_data[malzeme_kodu]
+    son_15_gun = []
+
+    for iptal in iptaller:
+        tarih_str = str(iptal['tarih'])
+        try:
+            for fmt in ['%d.%m.%Y', '%Y-%m-%d', '%d/%m/%Y']:
+                try:
+                    tarih = datetime.strptime(tarih_str.split()[0], fmt)
+                    break
+                except:
+                    continue
+            else:
+                continue
+
+            if tarih >= kamera_limit:
+                son_15_gun.append({**iptal, 'tarih_dt': tarih})
+        except:
+            pass
+
+    if not son_15_gun:
+        return {'bulundu': False, 'detay': '❌ Son 15 günde iptal yok'}
+
+    # Tarihe göre sırala
+    son_15_gun_sorted = sorted(son_15_gun, key=lambda x: x['tarih_dt'], reverse=True)
+
+    detaylar = []
+    for iptal in son_15_gun_sorted[:3]:  # Max 3 kayıt
+        tarih = iptal['tarih_dt'].strftime('%d.%m.%Y')
+        saat = str(iptal.get('saat', ''))[:8]
+        islem_no = str(iptal.get('islem_no', ''))
+
+        # Kasa numarası (işlem no'nun 4-5. karakteri)
+        kasa_no = ""
+        if len(islem_no) >= 6:
+            try:
+                kasa_no = f"Kasa:{int(islem_no[4:6])}"
+            except:
+                kasa_no = ""
+
+        detaylar.append(f"{tarih} {saat} {kasa_no}".strip())
+
+    return {
+        'bulundu': True,
+        'detay': "✅ KAMERA BAK: " + " | ".join(detaylar)
+    }
+
+
+# ==================== İÇ HIRSIZLIK VERİ FONKSİYONLARI ====================
+def get_ic_hirsizlik_data(donemler):
+    """
+    İç hırsızlık analizi için ürün bazlı veri çeker.
+    Gerekli sütunlar: magaza_kodu, malzeme_kodu, malzeme_tanimi, satis_fiyati,
+                      iptal_satir_miktari, fark_miktari
+    """
+    if supabase is None or not donemler:
+        return None
+
+    try:
+        all_data = []
+        batch_size = 1000
+
+        for donem in donemler:
+            offset = 0
+            while True:
+                try:
+                    result = supabase.table(TABLE_NAME).select(
+                        'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,'
+                        'malzeme_kodu,malzeme_tanimi,satis_fiyati,'
+                        'iptal_satir_miktari,fark_miktari,fark_tutari'
+                    ).eq(
+                        'envanter_donemi', donem
+                    ).limit(batch_size).offset(offset).execute()
+
+                    if result.data:
+                        all_data.extend(result.data)
+                        if len(result.data) < batch_size:
+                            break
+                        offset += batch_size
+                    else:
+                        break
+                except:
+                    break
+
+        if all_data:
+            return pd.DataFrame(all_data)
+        return None
+    except:
+        return None
+
+
+def hesapla_ic_hirsizlik_sayisi(df, birim_col, birim_value):
+    """
+    Belirli bir birim (SM/BS/Mağaza) için şüpheli ürün sayısını hesapla.
+    """
+    if df is None or df.empty:
+        return 0, []
+
+    birim_df = df[df[birim_col] == birim_value]
+    supheli_urunler = []
+
+    for _, row in birim_df.iterrows():
+        iptal = row.get('iptal_satir_miktari', 0) or 0
+        fark = row.get('fark_miktari', 0) or 0
+        fiyat = row.get('satis_fiyati', 0) or 0
+
+        sonuc = tespit_supheli_urun(iptal, fark, fiyat)
+        if sonuc['supheli']:
+            supheli_urunler.append({
+                'malzeme_kodu': row.get('malzeme_kodu', ''),
+                'malzeme_tanimi': row.get('malzeme_tanimi', ''),
+                'magaza_kodu': row.get('magaza_kodu', ''),
+                'satis_fiyati': fiyat,
+                'iptal_miktari': iptal,
+                'fark_miktari': fark,
+                'risk': sonuc['risk'],
+                'fark_tutari': row.get('fark_tutari', 0) or 0
+            })
+
+    return len(supheli_urunler), supheli_urunler
+
 
 # ==================== ANA UYGULAMA ====================
 def main_app():
@@ -1123,6 +1343,9 @@ def main_app():
                     bolge_toplam_acik = bolge_toplam_fark + bolge_toplam_fire
                     bolge_acik_oran = (bolge_toplam_acik / bolge_toplam_satis * 100) if bolge_toplam_satis else 0
 
+                    # İç hırsızlık verisi çek (ürün bazlı)
+                    ic_df = get_ic_hirsizlik_data(selected_periods)
+
                     # Bölge özet bilgisi
                     st.markdown(f"**📊 Bölge Referans Değerleri:** Açık Oranı: **%{bolge_acik_oran:.2f}** | Satış: ₺{bolge_toplam_satis:,.0f} | Açık: ₺{bolge_toplam_acik:,.0f}")
                     st.markdown("---")
@@ -1149,10 +1372,14 @@ def main_app():
                                 sm_acik = row['fark_tutari'] + row['fire_tutari']
                                 sm_satis = row['satis_hasilati']
 
-                                risk = hesapla_birim_risk(
+                                # İç hırsızlık sayısı
+                                ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'satis_muduru', row['satis_muduru'])
+
+                                risk = hesapla_birim_risk_v2(
                                     {'acik': sm_acik, 'satis': sm_satis},
                                     bolge_toplam_acik,
-                                    bolge_toplam_satis
+                                    bolge_toplam_satis,
+                                    ic_sayisi
                                 )
 
                                 sm_riskler.append({
@@ -1165,7 +1392,8 @@ def main_app():
                                     'Puan': risk['puan'],
                                     'Seviye': risk['seviye'],
                                     'emoji': risk['emoji'],
-                                    'detay': risk['detay']
+                                    'detay': risk['detay'],
+                                    'ic_urunler': ic_urunler
                                 })
 
                             # Puana göre sırala (yüksek puan = yüksek risk)
@@ -1191,6 +1419,15 @@ def main_app():
                                         st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
                                     if detay.get('bolge_ortalama_ustu', 0) > 0:
                                         st.info(f"📊 Bölge Ort. Üstü ({sm['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
+                                    if detay.get('ic_hirsizlik', 0) > 0:
+                                        st.error(f"🔓 İç Hırsızlık Şüphesi ({detay.get('ic_hirsizlik_sayisi', 0)} ürün): +{detay['ic_hirsizlik']} puan")
+
+                                    # Şüpheli ürünler listesi
+                                    if sm['ic_urunler']:
+                                        st.markdown("---")
+                                        st.markdown("**🔓 Şüpheli Ürünler (İç Hırsızlık):**")
+                                        for urun in sm['ic_urunler'][:10]:
+                                            st.write(f"• **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:40]} | Mğz: {urun['magaza_kodu']} | Fiyat: ₺{urun['satis_fiyati']:.0f} | Risk: {urun['risk']}")
                         else:
                             st.warning("SM verisi bulunamadı")
 
@@ -1199,11 +1436,11 @@ def main_app():
                         st.markdown("### 📋 Bölge Sorumlusu Risk Sıralaması")
 
                         if 'bolge_sorumlusu' in gm_df.columns:
-                            bs_df = gm_df[gm_df['bolge_sorumlusu'].notna() & (gm_df['bolge_sorumlusu'] != '')]
+                            bs_df_risk = gm_df[gm_df['bolge_sorumlusu'].notna() & (gm_df['bolge_sorumlusu'] != '')]
 
-                            if len(bs_df) > 0:
+                            if len(bs_df_risk) > 0:
                                 # BS bazlı grupla
-                                bs_risk_df = bs_df.groupby('bolge_sorumlusu').agg({
+                                bs_risk_df = bs_df_risk.groupby('bolge_sorumlusu').agg({
                                     'fark_tutari': 'sum',
                                     'fire_tutari': 'sum',
                                     'satis_hasilati': 'sum',
@@ -1216,10 +1453,14 @@ def main_app():
                                     bs_acik = row['fark_tutari'] + row['fire_tutari']
                                     bs_satis = row['satis_hasilati']
 
-                                    risk = hesapla_birim_risk(
+                                    # İç hırsızlık sayısı
+                                    ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'bolge_sorumlusu', row['bolge_sorumlusu'])
+
+                                    risk = hesapla_birim_risk_v2(
                                         {'acik': bs_acik, 'satis': bs_satis},
                                         bolge_toplam_acik,
-                                        bolge_toplam_satis
+                                        bolge_toplam_satis,
+                                        ic_sayisi
                                     )
 
                                     bs_riskler.append({
@@ -1232,7 +1473,8 @@ def main_app():
                                         'Puan': risk['puan'],
                                         'Seviye': risk['seviye'],
                                         'emoji': risk['emoji'],
-                                        'detay': risk['detay']
+                                        'detay': risk['detay'],
+                                        'ic_urunler': ic_urunler
                                     })
 
                                 # Puana göre sırala
@@ -1258,6 +1500,15 @@ def main_app():
                                             st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
                                         if detay.get('bolge_ortalama_ustu', 0) > 0:
                                             st.info(f"📊 Bölge Ort. Üstü ({bs['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
+                                        if detay.get('ic_hirsizlik', 0) > 0:
+                                            st.error(f"🔓 İç Hırsızlık Şüphesi ({detay.get('ic_hirsizlik_sayisi', 0)} ürün): +{detay['ic_hirsizlik']} puan")
+
+                                        # Şüpheli ürünler listesi
+                                        if bs['ic_urunler']:
+                                            st.markdown("---")
+                                            st.markdown("**🔓 Şüpheli Ürünler (İç Hırsızlık):**")
+                                            for urun in bs['ic_urunler'][:10]:
+                                                st.write(f"• **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:40]} | Mğz: {urun['magaza_kodu']} | Fiyat: ₺{urun['satis_fiyati']:.0f} | Risk: {urun['risk']}")
                             else:
                                 st.warning("BS verisi bulunamadı")
                         else:
@@ -1280,10 +1531,14 @@ def main_app():
                             mag_acik = row['fark_tutari'] + row['fire_tutari']
                             mag_satis = row['satis_hasilati']
 
-                            risk = hesapla_birim_risk(
+                            # İç hırsızlık sayısı
+                            ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'magaza_kodu', row['magaza_kodu'])
+
+                            risk = hesapla_birim_risk_v2(
                                 {'acik': mag_acik, 'satis': mag_satis},
                                 bolge_toplam_acik,
-                                bolge_toplam_satis
+                                bolge_toplam_satis,
+                                ic_sayisi
                             )
 
                             mag_riskler.append({
@@ -1296,7 +1551,8 @@ def main_app():
                                 'Puan': risk['puan'],
                                 'Seviye': risk['seviye'],
                                 'emoji': risk['emoji'],
-                                'detay': risk['detay']
+                                'detay': risk['detay'],
+                                'ic_urunler': ic_urunler
                             })
 
                         # Puana göre sırala
@@ -1327,6 +1583,22 @@ def main_app():
                                         st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
                                     if detay.get('bolge_ortalama_ustu', 0) > 0:
                                         st.info(f"📊 Bölge Ort. Üstü ({mag['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
+                                    if detay.get('ic_hirsizlik', 0) > 0:
+                                        st.error(f"🔓 İç Hırsızlık Şüphesi ({detay.get('ic_hirsizlik_sayisi', 0)} ürün): +{detay['ic_hirsizlik']} puan")
+
+                                    # Şüpheli ürünler + Kamera bilgisi
+                                    if mag['ic_urunler']:
+                                        st.markdown("---")
+                                        st.markdown("**🔓 Şüpheli Ürünler (İç Hırsızlık) + Kamera Bilgisi:**")
+
+                                        # Kamera verisi çek (bu mağaza için)
+                                        malzeme_kodlari = [u['malzeme_kodu'] for u in mag['ic_urunler']]
+                                        iptal_data = get_iptal_timestamps_for_magaza(mag['Kod'], malzeme_kodlari)
+
+                                        for urun in mag['ic_urunler'][:10]:
+                                            kamera = get_kamera_bilgisi(str(urun['malzeme_kodu']), iptal_data)
+                                            st.write(f"• **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:30]} | ₺{urun['satis_fiyati']:.0f} | Risk: {urun['risk']}")
+                                            st.caption(f"  {kamera['detay']}")
 
                             if len(riskli_magazalar) > 20:
                                 st.caption(f"... ve {len(riskli_magazalar) - 20} mağaza daha")
