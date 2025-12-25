@@ -215,37 +215,49 @@ COLUMN_MAPPING = {
     'Malzeme Tanımı': 'malzeme_tanimi',
     'Satış Fiyatı': 'satis_fiyati',
     'Envanter Sayisi': 'envanter_sayisi',
-    # Kümülatif alanlar - Excel'den gelen toplam değerler (_kum suffix)
+    # TÜM kümülatif alanlar - Excel'den gelen toplam değerler (_kum suffix)
     'Sayım Miktarı': 'sayim_miktari_kum',
     'Sayım Tutarı': 'sayim_tutari_kum',
     'Kaydi Miktar': 'kaydi_miktar_kum',
     'Kaydi Tutar': 'kaydi_tutar_kum',
     'Fark Miktarı': 'fark_miktari_kum',
+    'Fark Tutarı': 'fark_tutari_kum',
+    'Fire Miktarı': 'fire_miktari_kum',
+    'Fire Tutarı': 'fire_tutari_kum',
+    'Fark+Fire+Kısmi Envanter Miktarı': 'fark_fire_kismi_miktari_kum',
+    'Fark+Fire+Kısmi Envanter Tutarı': 'fark_fire_kismi_tutari_kum',
+    'Satış Miktarı': 'satis_miktari_kum',
+    'Satış Hasılatı': 'satis_hasilati_kum',
+    'İade Miktarı': 'iade_miktari_kum',
+    'İade Tutarı': 'iade_tutari_kum',
+    'İptal Fişteki Miktar': 'iptal_fisteki_miktar_kum',
+    'İptal Fiş Tutarı': 'iptal_fis_tutari_kum',
+    'İptal GP Miktarı': 'iptal_gp_miktari_kum',
+    'İptal GP TUTARI': 'iptal_gp_tutari_kum',
     'İptal Satır Miktarı': 'iptal_satir_miktari_kum',
     'İptal Satır Tutarı': 'iptal_satir_tutari_kum',
-    # Kümülatif olmayan alanlar
-    'Fark Tutarı': 'fark_tutari',
-    'Fire Miktarı': 'fire_miktari',
-    'Fire Tutarı': 'fire_tutari',
-    'Fark+Fire+Kısmi Envanter Miktarı': 'fark_fire_kismi_miktari',
-    'Fark+Fire+Kısmi Envanter Tutarı': 'fark_fire_kismi_tutari',
-    'Satış Miktarı': 'satis_miktari',
-    'Satış Hasılatı': 'satis_hasilati',
-    'İade Miktarı': 'iade_miktari',
-    'İade Tutarı': 'iade_tutari',
-    'İptal Fişteki Miktar': 'iptal_fisteki_miktar',
-    'İptal Fiş Tutarı': 'iptal_fis_tutari',
-    'İptal GP Miktarı': 'iptal_gp_miktari',
-    'İptal GP TUTARI': 'iptal_gp_tutari',
 }
 
-# Delta hesaplanacak kümülatif alanlar
+# Delta hesaplanacak kümülatif alanlar: (kümülatif_sütun, delta_sütun)
 KUMULATIF_ALANLAR = [
     ('sayim_miktari_kum', 'sayim_miktari'),
     ('sayim_tutari_kum', 'sayim_tutari'),
     ('kaydi_miktar_kum', 'kaydi_miktar'),
     ('kaydi_tutar_kum', 'kaydi_tutar'),
     ('fark_miktari_kum', 'fark_miktari'),
+    ('fark_tutari_kum', 'fark_tutari'),
+    ('fire_miktari_kum', 'fire_miktari'),
+    ('fire_tutari_kum', 'fire_tutari'),
+    ('fark_fire_kismi_miktari_kum', 'fark_fire_kismi_miktari'),
+    ('fark_fire_kismi_tutari_kum', 'fark_fire_kismi_tutari'),
+    ('satis_miktari_kum', 'satis_miktari'),
+    ('satis_hasilati_kum', 'satis_hasilati'),
+    ('iade_miktari_kum', 'iade_miktari'),
+    ('iade_tutari_kum', 'iade_tutari'),
+    ('iptal_fisteki_miktar_kum', 'iptal_fisteki_miktar'),
+    ('iptal_fis_tutari_kum', 'iptal_fis_tutari'),
+    ('iptal_gp_miktari_kum', 'iptal_gp_miktari'),
+    ('iptal_gp_tutari_kum', 'iptal_gp_tutari'),
     ('iptal_satir_miktari_kum', 'iptal_satir_miktari'),
     ('iptal_satir_tutari_kum', 'iptal_satir_tutari'),
 ]
@@ -306,11 +318,15 @@ def save_to_supabase(df):
                 donem_set.add(str(record['envanter_donemi']))
 
         # 2. Mevcut kayıtları çek (karşılaştırma için)
+        # Tüm kümülatif alanları çek
+        kum_fields = ','.join([kum for kum, _ in KUMULATIF_ALANLAR])
+        select_fields = f'magaza_kodu,malzeme_kodu,envanter_sayisi,{kum_fields}'
+
         existing_records = {}
         for donem in donem_set:
             try:
                 result = supabase.table(TABLE_NAME).select(
-                    'magaza_kodu,malzeme_kodu,envanter_sayisi,fark_kumulatif'
+                    select_fields
                 ).eq('envanter_donemi', donem).in_('magaza_kodu', list(magaza_set)).execute()
 
                 if result.data:
@@ -346,24 +362,25 @@ def save_to_supabase(df):
                 continue
 
             # Önceki envanteri bul (aynı dönemde, daha küçük envanter_sayisi)
-            fark_kumulatif = record.get('fark_kumulatif', 0) or 0
-            previous_kumulatif = 0
-
-            # Önceki envanterleri ara
+            previous_record = None
             for prev_sayisi in range(envanter_sayisi - 1, 0, -1):
                 prev_key = (magaza, malzeme, donem, prev_sayisi)
                 if prev_key in existing_records:
-                    previous_kumulatif = existing_records[prev_key].get('fark_kumulatif', 0) or 0
+                    previous_record = existing_records[prev_key]
                     break
 
-            # Delta hesapla
-            fark_delta = fark_kumulatif - previous_kumulatif
-            record['fark_miktari'] = fark_delta
+            # TÜM kümülatif alanlar için delta hesapla
+            for kum_field, delta_field in KUMULATIF_ALANLAR:
+                current_kum = record.get(kum_field, 0) or 0
+                previous_kum = 0
+                if previous_record:
+                    previous_kum = previous_record.get(kum_field, 0) or 0
+                record[delta_field] = current_kum - previous_kum
 
             records_to_insert.append(record)
 
             # Bu kaydı da existing'e ekle (sonraki kayıtlar için)
-            existing_records[key] = {'fark_kumulatif': fark_kumulatif}
+            existing_records[key] = {kum: record.get(kum, 0) for kum, _ in KUMULATIF_ALANLAR}
 
         # 4. Yeni kayıtları ekle (insert, upsert değil)
         batch_size = 500
