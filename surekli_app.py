@@ -1413,41 +1413,63 @@ def main_app():
                                     'Seviye': risk['seviye'],
                                     'emoji': risk['emoji'],
                                     'detay': risk['detay'],
-                                    'ic_urunler': ic_urunler
+                                    'ic_urunler': ic_urunler,
+                                    'ic_sayisi': ic_sayisi
                                 })
 
-                            # Puana göre sırala (yüksek puan = yüksek risk)
-                            sm_riskler = sorted(sm_riskler, key=lambda x: x['Puan'], reverse=True)
+                            # Alt sekmeler: Açık Oranı | İç Hırsızlık
+                            sm_alt_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık"])
 
-                            # Göster
-                            for sm in sm_riskler:
-                                with st.expander(f"{sm['emoji']} **{sm['SM']}** | Puan: {sm['Puan']} | {sm['Seviye']} | Açık: %{sm['Açık%']:.2f} | Katsayı: {sm['Katsayı']:.2f}x"):
-                                    c1, c2, c3, c4 = st.columns(4)
-                                    with c1:
-                                        st.metric("Mağaza Sayısı", sm['Mağaza'])
-                                    with c2:
-                                        st.metric("Satış", f"₺{sm['Satış']:,.0f}")
-                                    with c3:
-                                        st.metric("Açık", f"₺{sm['Açık']:,.0f}")
-                                    with c4:
-                                        st.metric("Risk Puanı", sm['Puan'])
+                            # ===== AÇIK ORANI SEKMESİ =====
+                            with sm_alt_tabs[0]:
+                                sm_riskler_sorted = sorted(sm_riskler, key=lambda x: x['Puan'], reverse=True)
 
-                                    # Detay
-                                    st.markdown("**Risk Detayı:**")
-                                    detay = sm['detay']
-                                    if detay.get('pozitif_acik', 0) > 0:
-                                        st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
-                                    if detay.get('bolge_ortalama_ustu', 0) > 0:
-                                        st.info(f"📊 Bölge Ort. Üstü ({sm['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
-                                    if detay.get('ic_hirsizlik', 0) > 0:
-                                        st.error(f"🔓 İç Hırsızlık Şüphesi ({detay.get('ic_hirsizlik_sayisi', 0)} ürün): +{detay['ic_hirsizlik']} puan")
+                                for sm in sm_riskler_sorted:
+                                    with st.expander(f"{sm['emoji']} **{sm['SM']}** | Puan: {sm['Puan']} | {sm['Seviye']} | Açık: %{sm['Açık%']:.2f} | Katsayı: {sm['Katsayı']:.2f}x"):
+                                        c1, c2, c3, c4 = st.columns(4)
+                                        with c1:
+                                            st.metric("Mağaza Sayısı", sm['Mağaza'])
+                                        with c2:
+                                            st.metric("Satış", f"₺{sm['Satış']:,.0f}")
+                                        with c3:
+                                            st.metric("Açık", f"₺{sm['Açık']:,.0f}")
+                                        with c4:
+                                            st.metric("Risk Puanı", sm['Puan'])
 
-                                    # Şüpheli ürünler listesi
-                                    if sm['ic_urunler']:
-                                        st.markdown("---")
-                                        st.markdown("**🔓 Şüpheli Ürünler (İç Hırsızlık):**")
-                                        for urun in sm['ic_urunler'][:10]:
-                                            st.write(f"• **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:40]} | Mğz: {urun['magaza_kodu']} | Fiyat: ₺{urun['satis_fiyati']:.0f} | Risk: {urun['risk']}")
+                                        detay = sm['detay']
+                                        if detay.get('pozitif_acik', 0) > 0:
+                                            st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
+                                        if detay.get('bolge_ortalama_ustu', 0) > 0:
+                                            st.info(f"📊 Bölge Ort. Üstü ({sm['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
+                                        if detay.get('ic_hirsizlik', 0) > 0:
+                                            st.error(f"🔓 İç Hırsızlık Şüphesi ({detay.get('ic_hirsizlik_sayisi', 0)} ürün): +{detay['ic_hirsizlik']} puan")
+
+                            # ===== İÇ HIRSIZLIK SEKMESİ =====
+                            with sm_alt_tabs[1]:
+                                ic_riskli_sm = [s for s in sm_riskler if s['ic_sayisi'] > 0]
+                                ic_riskli_sm_sorted = sorted(ic_riskli_sm, key=lambda x: x['ic_sayisi'], reverse=True)
+
+                                if ic_riskli_sm_sorted:
+                                    st.error(f"🔓 {len(ic_riskli_sm_sorted)} SM'de iç hırsızlık şüphesi tespit edildi")
+
+                                    for sm in ic_riskli_sm_sorted:
+                                        with st.expander(f"🔓 **{sm['SM']}** | {sm['ic_sayisi']} şüpheli ürün | {sm['Mağaza']} mağaza"):
+                                            c1, c2, c3 = st.columns(3)
+                                            with c1:
+                                                st.metric("Şüpheli Ürün", sm['ic_sayisi'])
+                                            with c2:
+                                                st.metric("İç Hırsızlık Puanı", sm['detay'].get('ic_hirsizlik', 0))
+                                            with c3:
+                                                st.metric("Toplam Risk", sm['Puan'])
+
+                                            if sm['ic_urunler']:
+                                                st.markdown("**🔓 Şüpheli Ürünler:**")
+                                                for urun in sm['ic_urunler'][:15]:
+                                                    risk_renk = "🔴" if urun['risk'] == 'ÇOK YÜKSEK' else "🟠" if urun['risk'] == 'YÜKSEK' else "🟡"
+                                                    st.write(f"{risk_renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | Mğz: {urun['magaza_kodu']}")
+                                                    st.caption(f"  ₺{urun['satis_fiyati']:.0f} | İptal: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']}")
+                                else:
+                                    st.success("🟢 İç hırsızlık şüphesi olan SM bulunamadı!")
                         else:
                             st.warning("SM verisi bulunamadı")
 
@@ -1494,41 +1516,63 @@ def main_app():
                                         'Seviye': risk['seviye'],
                                         'emoji': risk['emoji'],
                                         'detay': risk['detay'],
-                                        'ic_urunler': ic_urunler
+                                        'ic_urunler': ic_urunler,
+                                        'ic_sayisi': ic_sayisi
                                     })
 
-                                # Puana göre sırala
-                                bs_riskler = sorted(bs_riskler, key=lambda x: x['Puan'], reverse=True)
+                                # Alt sekmeler: Açık Oranı | İç Hırsızlık
+                                bs_alt_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık"])
 
-                                # Göster
-                                for bs in bs_riskler:
-                                    with st.expander(f"{bs['emoji']} **{bs['BS']}** | Puan: {bs['Puan']} | {bs['Seviye']} | Açık: %{bs['Açık%']:.2f} | Katsayı: {bs['Katsayı']:.2f}x"):
-                                        c1, c2, c3, c4 = st.columns(4)
-                                        with c1:
-                                            st.metric("Mağaza Sayısı", bs['Mağaza'])
-                                        with c2:
-                                            st.metric("Satış", f"₺{bs['Satış']:,.0f}")
-                                        with c3:
-                                            st.metric("Açık", f"₺{bs['Açık']:,.0f}")
-                                        with c4:
-                                            st.metric("Risk Puanı", bs['Puan'])
+                                # ===== AÇIK ORANI SEKMESİ =====
+                                with bs_alt_tabs[0]:
+                                    bs_riskler_sorted = sorted(bs_riskler, key=lambda x: x['Puan'], reverse=True)
 
-                                        # Detay
-                                        st.markdown("**Risk Detayı:**")
-                                        detay = bs['detay']
-                                        if detay.get('pozitif_acik', 0) > 0:
-                                            st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
-                                        if detay.get('bolge_ortalama_ustu', 0) > 0:
-                                            st.info(f"📊 Bölge Ort. Üstü ({bs['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
-                                        if detay.get('ic_hirsizlik', 0) > 0:
-                                            st.error(f"🔓 İç Hırsızlık Şüphesi ({detay.get('ic_hirsizlik_sayisi', 0)} ürün): +{detay['ic_hirsizlik']} puan")
+                                    for bs in bs_riskler_sorted:
+                                        with st.expander(f"{bs['emoji']} **{bs['BS']}** | Puan: {bs['Puan']} | {bs['Seviye']} | Açık: %{bs['Açık%']:.2f} | Katsayı: {bs['Katsayı']:.2f}x"):
+                                            c1, c2, c3, c4 = st.columns(4)
+                                            with c1:
+                                                st.metric("Mağaza Sayısı", bs['Mağaza'])
+                                            with c2:
+                                                st.metric("Satış", f"₺{bs['Satış']:,.0f}")
+                                            with c3:
+                                                st.metric("Açık", f"₺{bs['Açık']:,.0f}")
+                                            with c4:
+                                                st.metric("Risk Puanı", bs['Puan'])
 
-                                        # Şüpheli ürünler listesi
-                                        if bs['ic_urunler']:
-                                            st.markdown("---")
-                                            st.markdown("**🔓 Şüpheli Ürünler (İç Hırsızlık):**")
-                                            for urun in bs['ic_urunler'][:10]:
-                                                st.write(f"• **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:40]} | Mğz: {urun['magaza_kodu']} | Fiyat: ₺{urun['satis_fiyati']:.0f} | Risk: {urun['risk']}")
+                                            detay = bs['detay']
+                                            if detay.get('pozitif_acik', 0) > 0:
+                                                st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
+                                            if detay.get('bolge_ortalama_ustu', 0) > 0:
+                                                st.info(f"📊 Bölge Ort. Üstü ({bs['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
+                                            if detay.get('ic_hirsizlik', 0) > 0:
+                                                st.error(f"🔓 İç Hırsızlık Şüphesi ({detay.get('ic_hirsizlik_sayisi', 0)} ürün): +{detay['ic_hirsizlik']} puan")
+
+                                # ===== İÇ HIRSIZLIK SEKMESİ =====
+                                with bs_alt_tabs[1]:
+                                    ic_riskli_bs = [b for b in bs_riskler if b['ic_sayisi'] > 0]
+                                    ic_riskli_bs_sorted = sorted(ic_riskli_bs, key=lambda x: x['ic_sayisi'], reverse=True)
+
+                                    if ic_riskli_bs_sorted:
+                                        st.error(f"🔓 {len(ic_riskli_bs_sorted)} BS'de iç hırsızlık şüphesi tespit edildi")
+
+                                        for bs in ic_riskli_bs_sorted:
+                                            with st.expander(f"🔓 **{bs['BS']}** | {bs['ic_sayisi']} şüpheli ürün | {bs['Mağaza']} mağaza"):
+                                                c1, c2, c3 = st.columns(3)
+                                                with c1:
+                                                    st.metric("Şüpheli Ürün", bs['ic_sayisi'])
+                                                with c2:
+                                                    st.metric("İç Hırsızlık Puanı", bs['detay'].get('ic_hirsizlik', 0))
+                                                with c3:
+                                                    st.metric("Toplam Risk", bs['Puan'])
+
+                                                if bs['ic_urunler']:
+                                                    st.markdown("**🔓 Şüpheli Ürünler:**")
+                                                    for urun in bs['ic_urunler'][:15]:
+                                                        risk_renk = "🔴" if urun['risk'] == 'ÇOK YÜKSEK' else "🟠" if urun['risk'] == 'YÜKSEK' else "🟡"
+                                                        st.write(f"{risk_renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | Mğz: {urun['magaza_kodu']}")
+                                                        st.caption(f"  ₺{urun['satis_fiyati']:.0f} | İptal: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']}")
+                                    else:
+                                        st.success("🟢 İç hırsızlık şüphesi olan BS bulunamadı!")
                             else:
                                 st.warning("BS verisi bulunamadı")
                         else:
@@ -1572,63 +1616,89 @@ def main_app():
                                 'Seviye': risk['seviye'],
                                 'emoji': risk['emoji'],
                                 'detay': risk['detay'],
-                                'ic_urunler': ic_urunler
+                                'ic_urunler': ic_urunler,
+                                'ic_sayisi': ic_sayisi
                             })
 
-                        # Puana göre sırala
-                        mag_riskler = sorted(mag_riskler, key=lambda x: x['Puan'], reverse=True)
+                        # Alt sekmeler: Açık Oranı | İç Hırsızlık
+                        mag_alt_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık"])
 
-                        # Sadece riskli olanları göster (puan > 0)
-                        riskli_magazalar = [m for m in mag_riskler if m['Puan'] > 0]
+                        # ===== AÇIK ORANI SEKMESİ =====
+                        with mag_alt_tabs[0]:
+                            # Puana göre sırala
+                            mag_riskler_sorted = sorted(mag_riskler, key=lambda x: x['Puan'], reverse=True)
+                            riskli_magazalar = [m for m in mag_riskler_sorted if m['Puan'] > 0]
 
-                        if riskli_magazalar:
-                            st.info(f"🔴 {len(riskli_magazalar)} mağazada risk tespit edildi")
+                            if riskli_magazalar:
+                                st.info(f"🔴 {len(riskli_magazalar)} mağazada risk tespit edildi")
 
-                            for mag in riskli_magazalar[:20]:  # İlk 20
-                                with st.expander(f"{mag['emoji']} **{mag['Kod']}** {mag['Mağaza']} | Puan: {mag['Puan']} | {mag['Seviye']} | Açık: %{mag['Açık%']:.2f}"):
-                                    c1, c2, c3, c4 = st.columns(4)
-                                    with c1:
-                                        st.metric("Satış", f"₺{mag['Satış']:,.0f}")
-                                    with c2:
-                                        st.metric("Açık", f"₺{mag['Açık']:,.0f}")
-                                    with c3:
-                                        st.metric("Katsayı", f"{mag['Katsayı']:.2f}x")
-                                    with c4:
-                                        st.metric("Risk Puanı", mag['Puan'])
+                                for mag in riskli_magazalar[:20]:
+                                    with st.expander(f"{mag['emoji']} **{mag['Kod']}** {mag['Mağaza']} | Puan: {mag['Puan']} | {mag['Seviye']} | Açık: %{mag['Açık%']:.2f}"):
+                                        c1, c2, c3, c4 = st.columns(4)
+                                        with c1:
+                                            st.metric("Satış", f"₺{mag['Satış']:,.0f}")
+                                        with c2:
+                                            st.metric("Açık", f"₺{mag['Açık']:,.0f}")
+                                        with c3:
+                                            st.metric("Katsayı", f"{mag['Katsayı']:.2f}x")
+                                        with c4:
+                                            st.metric("Risk Puanı", mag['Puan'])
 
-                                    # Detay
-                                    st.markdown("**Risk Detayı:**")
-                                    detay = mag['detay']
-                                    if detay.get('pozitif_acik', 0) > 0:
-                                        st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
-                                    if detay.get('bolge_ortalama_ustu', 0) > 0:
-                                        st.info(f"📊 Bölge Ort. Üstü ({mag['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
-                                    if detay.get('ic_hirsizlik', 0) > 0:
-                                        st.error(f"🔓 İç Hırsızlık Şüphesi ({detay.get('ic_hirsizlik_sayisi', 0)} ürün): +{detay['ic_hirsizlik']} puan")
+                                        detay = mag['detay']
+                                        if detay.get('pozitif_acik', 0) > 0:
+                                            st.warning(f"⚠️ Pozitif Açık: +{detay['pozitif_acik']} puan")
+                                        if detay.get('bolge_ortalama_ustu', 0) > 0:
+                                            st.info(f"📊 Bölge Ort. Üstü ({mag['Katsayı']:.2f}x): +{detay['bolge_ortalama_ustu']} puan")
+                                        if detay.get('ic_hirsizlik', 0) > 0:
+                                            st.error(f"🔓 İç Hırsızlık Şüphesi ({detay.get('ic_hirsizlik_sayisi', 0)} ürün): +{detay['ic_hirsizlik']} puan")
 
-                                    # Şüpheli ürünler + Kamera bilgisi
-                                    if mag['ic_urunler']:
-                                        st.markdown("---")
-                                        st.markdown("**🔓 Şüpheli Ürünler (İç Hırsızlık) + Kamera Bilgisi:**")
+                                if len(riskli_magazalar) > 20:
+                                    st.caption(f"... ve {len(riskli_magazalar) - 20} mağaza daha")
+                            else:
+                                st.success("🟢 Riskli mağaza bulunamadı!")
 
-                                        # Kamera verisi çek (bu mağaza için)
-                                        malzeme_kodlari = [u['malzeme_kodu'] for u in mag['ic_urunler']]
-                                        iptal_data = get_iptal_timestamps_for_magaza(mag['Kod'], malzeme_kodlari)
+                        # ===== İÇ HIRSIZLIK SEKMESİ =====
+                        with mag_alt_tabs[1]:
+                            # Sadece iç hırsızlık riski olanları filtrele
+                            ic_riskli = [m for m in mag_riskler if m['ic_sayisi'] > 0]
+                            ic_riskli_sorted = sorted(ic_riskli, key=lambda x: x['ic_sayisi'], reverse=True)
 
-                                        for urun in mag['ic_urunler'][:10]:
-                                            kamera = get_kamera_bilgisi(
-                                                str(urun['malzeme_kodu']),
-                                                iptal_data,
-                                                kamera_limit_gun=15,
-                                                yukleme_tarihi=urun.get('yukleme_tarihi')
-                                            )
-                                            st.write(f"• **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:30]} | ₺{urun['satis_fiyati']:.0f} | Risk: {urun['risk']}")
-                                            st.caption(f"  {kamera['detay']}")
+                            if ic_riskli_sorted:
+                                st.error(f"🔓 {len(ic_riskli_sorted)} mağazada iç hırsızlık şüphesi tespit edildi")
 
-                            if len(riskli_magazalar) > 20:
-                                st.caption(f"... ve {len(riskli_magazalar) - 20} mağaza daha")
-                        else:
-                            st.success("🟢 Riskli mağaza bulunamadı!")
+                                for mag in ic_riskli_sorted[:30]:
+                                    with st.expander(f"🔓 **{mag['Kod']}** {mag['Mağaza']} | {mag['ic_sayisi']} şüpheli ürün"):
+                                        c1, c2, c3 = st.columns(3)
+                                        with c1:
+                                            st.metric("Şüpheli Ürün", mag['ic_sayisi'])
+                                        with c2:
+                                            st.metric("İç Hırsızlık Puanı", mag['detay'].get('ic_hirsizlik', 0))
+                                        with c3:
+                                            st.metric("Toplam Risk", mag['Puan'])
+
+                                        # Şüpheli ürünler + Kamera bilgisi
+                                        if mag['ic_urunler']:
+                                            st.markdown("**🔓 Şüpheli Ürünler + Kamera Bilgisi:**")
+
+                                            # Kamera verisi çek
+                                            malzeme_kodlari = [u['malzeme_kodu'] for u in mag['ic_urunler']]
+                                            iptal_data = get_iptal_timestamps_for_magaza(mag['Kod'], malzeme_kodlari)
+
+                                            for urun in mag['ic_urunler'][:15]:
+                                                kamera = get_kamera_bilgisi(
+                                                    str(urun['malzeme_kodu']),
+                                                    iptal_data,
+                                                    kamera_limit_gun=15,
+                                                    yukleme_tarihi=urun.get('yukleme_tarihi')
+                                                )
+                                                risk_renk = "🔴" if urun['risk'] == 'ÇOK YÜKSEK' else "🟠" if urun['risk'] == 'YÜKSEK' else "🟡"
+                                                st.write(f"{risk_renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]}")
+                                                st.caption(f"  ₺{urun['satis_fiyati']:.0f} | İptal: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']} | {kamera['detay']}")
+
+                                if len(ic_riskli_sorted) > 30:
+                                    st.caption(f"... ve {len(ic_riskli_sorted) - 30} mağaza daha")
+                            else:
+                                st.success("🟢 İç hırsızlık şüphesi olan mağaza bulunamadı!")
 
                 else:
                     st.info("📥 Veri bulunamadı")
