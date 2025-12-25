@@ -246,6 +246,9 @@ def save_to_supabase(df):
         return 0, 0, "Supabase bağlantısı yok"
 
     try:
+        # Yükleme tarihi - bugünün tarihi
+        yukleme_tarihi = datetime.now().strftime('%Y-%m-%d')
+
         records = []
         for _, row in df.iterrows():
             record = {}
@@ -271,6 +274,8 @@ def save_to_supabase(df):
                                 pass
                     record[db_col] = val
 
+            # Yükleme tarihini ekle
+            record['yukleme_tarihi'] = yukleme_tarihi
             records.append(record)
 
         # Batch upsert
@@ -541,12 +546,25 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
     return result
 
 
-def get_kamera_bilgisi(malzeme_kodu, iptal_data, kamera_limit_gun=15):
+def get_kamera_bilgisi(malzeme_kodu, iptal_data, kamera_limit_gun=15, yukleme_tarihi=None):
     """
     Bir ürün için kamera bilgisini döner.
-    kamera_limit_gun: Bugünden geriye kaç gün bakılacak (default 15)
+    kamera_limit_gun: Referans tarihten geriye kaç gün bakılacak (default 15)
+    yukleme_tarihi: Dosyanın yüklendiği tarih (None ise bugünü kullan)
     """
-    kamera_limit = datetime.now() - timedelta(days=kamera_limit_gun)
+    # Referans tarih: yükleme tarihi veya bugün
+    if yukleme_tarihi:
+        try:
+            if isinstance(yukleme_tarihi, str):
+                referans_tarih = datetime.strptime(yukleme_tarihi, '%Y-%m-%d')
+            else:
+                referans_tarih = yukleme_tarihi
+        except:
+            referans_tarih = datetime.now()
+    else:
+        referans_tarih = datetime.now()
+
+    kamera_limit = referans_tarih - timedelta(days=kamera_limit_gun)
 
     if malzeme_kodu not in iptal_data:
         return {'bulundu': False, 'detay': '❌ İptal kaydı yok'}
@@ -620,7 +638,7 @@ def get_ic_hirsizlik_data(donemler):
                     result = supabase.table(TABLE_NAME).select(
                         'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,'
                         'malzeme_kodu,malzeme_tanimi,satis_fiyati,'
-                        'iptal_satir_miktari,fark_miktari,fark_tutari'
+                        'iptal_satir_miktari,fark_miktari,fark_tutari,yukleme_tarihi'
                     ).eq(
                         'envanter_donemi', donem
                     ).limit(batch_size).offset(offset).execute()
@@ -667,7 +685,8 @@ def hesapla_ic_hirsizlik_sayisi(df, birim_col, birim_value):
                 'iptal_miktari': iptal,
                 'fark_miktari': fark,
                 'risk': sonuc['risk'],
-                'fark_tutari': row.get('fark_tutari', 0) or 0
+                'fark_tutari': row.get('fark_tutari', 0) or 0,
+                'yukleme_tarihi': row.get('yukleme_tarihi', None)
             })
 
     return len(supheli_urunler), supheli_urunler
@@ -1597,7 +1616,12 @@ def main_app():
                                         iptal_data = get_iptal_timestamps_for_magaza(mag['Kod'], malzeme_kodlari)
 
                                         for urun in mag['ic_urunler'][:10]:
-                                            kamera = get_kamera_bilgisi(str(urun['malzeme_kodu']), iptal_data)
+                                            kamera = get_kamera_bilgisi(
+                                                str(urun['malzeme_kodu']),
+                                                iptal_data,
+                                                kamera_limit_gun=15,
+                                                yukleme_tarihi=urun.get('yukleme_tarihi')
+                                            )
                                             st.write(f"• **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:30]} | ₺{urun['satis_fiyati']:.0f} | Risk: {urun['risk']}")
                                             st.caption(f"  {kamera['detay']}")
 
