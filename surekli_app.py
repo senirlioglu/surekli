@@ -215,11 +215,15 @@ COLUMN_MAPPING = {
     'Malzeme Tanımı': 'malzeme_tanimi',
     'Satış Fiyatı': 'satis_fiyati',
     'Envanter Sayisi': 'envanter_sayisi',
-    'Sayım Miktarı': 'sayim_miktari',
-    'Sayım Tutarı': 'sayim_tutari',
-    'Kaydi Miktar': 'kaydi_miktar',
-    'Kaydi Tutar': 'kaydi_tutar',
-    'Fark Miktarı': 'fark_kumulatif',  # Excel'den gelen kümülatif değer
+    # Kümülatif alanlar - Excel'den gelen toplam değerler (_kum suffix)
+    'Sayım Miktarı': 'sayim_miktari_kum',
+    'Sayım Tutarı': 'sayim_tutari_kum',
+    'Kaydi Miktar': 'kaydi_miktar_kum',
+    'Kaydi Tutar': 'kaydi_tutar_kum',
+    'Fark Miktarı': 'fark_miktari_kum',
+    'İptal Satır Miktarı': 'iptal_satir_miktari_kum',
+    'İptal Satır Tutarı': 'iptal_satir_tutari_kum',
+    # Kümülatif olmayan alanlar
     'Fark Tutarı': 'fark_tutari',
     'Fire Miktarı': 'fire_miktari',
     'Fire Tutarı': 'fire_tutari',
@@ -233,9 +237,18 @@ COLUMN_MAPPING = {
     'İptal Fiş Tutarı': 'iptal_fis_tutari',
     'İptal GP Miktarı': 'iptal_gp_miktari',
     'İptal GP TUTARI': 'iptal_gp_tutari',
-    'İptal Satır Miktarı': 'iptal_satir_miktari',
-    'İptal Satır Tutarı': 'iptal_satir_tutari',
 }
+
+# Delta hesaplanacak kümülatif alanlar
+KUMULATIF_ALANLAR = [
+    ('sayim_miktari_kum', 'sayim_miktari'),
+    ('sayim_tutari_kum', 'sayim_tutari'),
+    ('kaydi_miktar_kum', 'kaydi_miktar'),
+    ('kaydi_tutar_kum', 'kaydi_tutar'),
+    ('fark_miktari_kum', 'fark_miktari'),
+    ('iptal_satir_miktari_kum', 'iptal_satir_miktari'),
+    ('iptal_satir_tutari_kum', 'iptal_satir_tutari'),
+]
 
 def save_to_supabase(df):
     """
