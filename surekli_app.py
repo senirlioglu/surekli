@@ -579,6 +579,41 @@ def get_iptal_verisi_from_sheets():
         return pd.DataFrame()
 
 
+def get_envanter_serisi(magaza_kodu, malzeme_kodu):
+    """Belirli mağaza+ürün için tüm envanter serisini getirir (delta hesabı için)"""
+    if supabase is None:
+        return []
+
+    try:
+        result = supabase.table(TABLE_NAME).select(
+            'envanter_sayisi,sayim_miktari,envanter_donemi'
+        ).eq('magaza_kodu', magaza_kodu).eq('malzeme_kodu', malzeme_kodu).order(
+            'envanter_sayisi', desc=False
+        ).execute()
+
+        if not result.data:
+            return []
+
+        # Delta hesapla
+        seri = []
+        onceki_kum = 0
+        for kayit in result.data:
+            env_sayisi = kayit.get('envanter_sayisi', 0) or 0
+            kumulatif = float(kayit.get('sayim_miktari', 0) or 0)
+            delta = kumulatif - onceki_kum
+            seri.append({
+                'envanter': env_sayisi,
+                'delta': delta,
+                'kumulatif': kumulatif,
+                'donem': kayit.get('envanter_donemi', '')
+            })
+            onceki_kum = kumulatif
+
+        return seri
+    except Exception as e:
+        return []
+
+
 def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
     """Belirli mağaza ve ürünler için iptal timestamp bilgilerini döner"""
     df_iptal = get_iptal_verisi_from_sheets()
@@ -1719,8 +1754,15 @@ def main_app():
                                 for sm_adi, data in sm_sorted:
                                     with st.expander(f"🔢 **{sm_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza"):
                                         for urun in sorted(data['urunler'], key=lambda x: x['sayim_miktari'], reverse=True)[:20]:
-                                            st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
-                                            st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
+                                            seri = get_envanter_serisi(urun['magaza_kodu'], urun['malzeme_kodu'])
+                                            if seri and len(seri) > 1:
+                                                son = seri[-1]
+                                                seri_str = " → ".join([f"{s['envanter']}.:{s['delta']:.0f}" for s in seri])
+                                                st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                                st.caption(f"  📊 Son: **{son['delta']:.0f}** | Seri: {seri_str}")
+                                            else:
+                                                st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                                st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
                             else:
                                 st.success(f"🟢 {YUKSEK_SAYIM_ESIK}+ sayım yapan ürün bulunamadı!")
 
@@ -1742,8 +1784,15 @@ def main_app():
                                 for bs_adi, data in bs_sorted:
                                     with st.expander(f"🔢 **{bs_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza"):
                                         for urun in sorted(data['urunler'], key=lambda x: x['sayim_miktari'], reverse=True)[:20]:
-                                            st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
-                                            st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
+                                            seri = get_envanter_serisi(urun['magaza_kodu'], urun['malzeme_kodu'])
+                                            if seri and len(seri) > 1:
+                                                son = seri[-1]
+                                                seri_str = " → ".join([f"{s['envanter']}.:{s['delta']:.0f}" for s in seri])
+                                                st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                                st.caption(f"  📊 Son: **{son['delta']:.0f}** | Seri: {seri_str}")
+                                            else:
+                                                st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                                st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
                             else:
                                 st.success(f"🟢 {YUKSEK_SAYIM_ESIK}+ sayım yapan ürün bulunamadı!")
 
@@ -1764,8 +1813,23 @@ def main_app():
                                 for mag_kodu, data in mag_sorted[:30]:
                                     with st.expander(f"🔢 **{mag_kodu}** {data['adi'][:25]} | {len(data['urunler'])} ürün | SM: {data['sm']} | BS: {data['bs']}"):
                                         for urun in sorted(data['urunler'], key=lambda x: x['sayim_miktari'], reverse=True)[:15]:
-                                            st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
-                                            st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
+                                            # Envanter serisini getir (lazy loading - expander açılınca)
+                                            seri = get_envanter_serisi(urun['magaza_kodu'], urun['malzeme_kodu'])
+                                            if seri and len(seri) > 1:
+                                                son = seri[-1]
+                                                st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
+                                                st.caption(f"  📊 Son Sayım: **{son['delta']:.0f}** | {son['envanter']}. Envanter | ₺{urun['satis_fiyati']:.0f}")
+                                                # Seri detayı
+                                                seri_str = " → ".join([f"{s['envanter']}.:{s['delta']:.0f}" for s in seri])
+                                                st.caption(f"  📈 Seri: {seri_str}")
+                                            elif seri and len(seri) == 1:
+                                                # İlk kayıt - delta yok
+                                                st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
+                                                st.caption(f"  📊 {seri[0]['envanter']}. Sayım: {seri[0]['kumulatif']:.0f} (ilk kayıt) | ₺{urun['satis_fiyati']:.0f}")
+                                            else:
+                                                # Seri bulunamadı
+                                                st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
+                                                st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
                                 if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
                             else:
                                 st.success(f"🟢 {YUKSEK_SAYIM_ESIK}+ sayım yapan mağaza bulunamadı!")
