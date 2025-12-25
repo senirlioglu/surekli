@@ -1957,8 +1957,19 @@ def main_app():
                         # Butonla hesaplama tetikle
                         if st.button("📉 Kronik Açık Hesapla", key="btn_kronik_acik"):
                             try:
-                                with st.spinner("Hesaplanıyor..."):
-                                    st.session_state["kronik_acik_urunler"] = _find_kronik_fast(gm_df, "fark_tutari", KRONIK_ESIK)
+                                # DEBUG: Fonksiyon öncesi kontrol
+                                need_cols = ['magaza_kodu', 'magaza_tanim', 'satis_muduru', 'bolge_sorumlusu',
+                                             'malzeme_kodu', 'malzeme_tanimi', 'envanter_sayisi', 'fark_tutari']
+                                missing_in_func = [c for c in need_cols if c not in gm_df.columns]
+                                if missing_in_func:
+                                    st.error(f"❌ _find_kronik_fast için eksik kolonlar: {missing_in_func}")
+                                    st.write(f"Mevcut: {list(gm_df.columns)}")
+                                    st.session_state["kronik_acik_urunler"] = []
+                                else:
+                                    with st.spinner("Hesaplanıyor..."):
+                                        result = _find_kronik_fast(gm_df, "fark_tutari", KRONIK_ESIK)
+                                        st.session_state["kronik_acik_urunler"] = result
+                                        st.success(f"✅ Hesaplandı: {len(result)} kronik ürün bulundu")
                             except Exception as e:
                                 st.error("Kronik Açık hesaplama hatası:")
                                 st.exception(e)
