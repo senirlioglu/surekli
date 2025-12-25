@@ -93,18 +93,20 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== SUPABASE BAĞLANTISI ====================
-supabase = None
-try:
-    from supabase import create_client, Client
-    SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", ""))
-    SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", ""))
+# ==================== LOADER IMPORT ====================
+from engine.loader import (
+    fetch_periods, fetch_sms, fetch_data_for_periods,
+    fetch_ic_hirsizlik_data, fetch_envanter_serisi,
+    create_client_for_write, TABLE_NAME
+)
 
-    if SUPABASE_URL and SUPABASE_KEY:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Bağlantı kontrolü (sidebar)
+try:
+    _test_periods = fetch_periods()
+    if _test_periods:
         st.sidebar.success("✅ Supabase bağlandı")
     else:
-        st.sidebar.warning("⚠️ Supabase secrets eksik")
+        st.sidebar.warning("⚠️ Supabase veri bulunamadı")
 except Exception as e:
     st.sidebar.error(f"❌ Supabase hata: {e}")
 
@@ -270,6 +272,7 @@ def save_to_supabase(df):
 
     Unique key: magaza_kodu + malzeme_kodu + envanter_donemi + envanter_sayisi
     """
+    supabase = create_client_for_write()
     if supabase is None:
         return 0, 0, 0, "Supabase bağlantısı yok"
 
@@ -405,6 +408,7 @@ def get_mevcut_envanter_sayilari(magaza_kodlari, envanter_donemi):
     Belirli mağazalar için mevcut envanter sayılarını getir
     Karşılaştırma için kullanılır
     """
+    supabase = create_client_for_write()
     if supabase is None:
         return {}
 
@@ -459,115 +463,42 @@ def detect_envanter_degisimi(df, mevcut_sayilar):
 
     return list(degisen_magazalar), degisen_urunler
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=1800, show_spinner=False)  # 30 dk cache
 def get_available_periods():
-    """Mevcut dönemleri getir - Supabase'den"""
-    if supabase is None:
-        return []
-    try:
-        result = supabase.table(TABLE_NAME).select('envanter_donemi').execute()
-        if result.data:
-            donemler = list(set(r['envanter_donemi'] for r in result.data if r['envanter_donemi']))
-            return sorted(donemler, reverse=True)
-        return []
-    except:
-        return []
+    """Mevcut dönemleri getir - PURE DATA cache"""
+    return fetch_periods()
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=1800, show_spinner=False)  # 30 dk cache
 def get_available_sms():
-    """Mevcut SM listesini getir - Supabase'den"""
-    if supabase is None:
-        return ["ALİ AKÇAY", "ŞADAN YURDAKUL", "VELİ GÖK", "GİZEM TOSUN"]
-    try:
-        result = supabase.table(TABLE_NAME).select('satis_muduru').execute()
-        if result.data:
-            sms = list(set(r['satis_muduru'] for r in result.data if r['satis_muduru']))
-            return sorted(sms)
-        return []
-    except:
-        return ["ALİ AKÇAY", "ŞADAN YURDAKUL", "VELİ GÖK", "GİZEM TOSUN"]
+    """Mevcut SM listesini getir - PURE DATA cache"""
+    return fetch_sms()
 
-def get_gm_ozet_data(donemler):
-    """GM Özet için verileri getir - retry mekanizmalı"""
-    if supabase is None or not donemler:
+@st.cache_data(ttl=600, show_spinner="Veri yükleniyor...")  # 10 dk cache
+def get_gm_ozet_data(donemler: tuple):
+    """GM Özet için verileri getir - PURE DATA cache"""
+    if not donemler:
         return None
 
-    import time
-    max_retries = 3
+    columns = 'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,depolama_kosulu,fark_tutari,fire_tutari,satis_hasilati,sayim_miktari,envanter_sayisi,malzeme_kodu,malzeme_tanimi,satis_fiyati'
+    all_data = fetch_data_for_periods(list(donemler), columns=columns)
 
-    try:
-        # Seçili dönemlerdeki tüm verileri çek
-        all_data = []
-        batch_size = 500  # Daha küçük batch ile daha stabil
+    if all_data:
+        df = pd.DataFrame(all_data)
+        if 'bolge_sorumlusu' not in df.columns:
+            df['bolge_sorumlusu'] = ''
+        else:
+            df['bolge_sorumlusu'] = df['bolge_sorumlusu'].fillna('')
+        return df
+    return None
 
-        for donem in donemler:
-            offset = 0
-            retry_count = 0
-            while True:
-                try:
-                    result = supabase.table(TABLE_NAME).select(
-                        'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,depolama_kosulu,fark_tutari,fire_tutari,satis_hasilati,sayim_miktari,envanter_sayisi,malzeme_kodu,malzeme_tanimi,satis_fiyati'
-                    ).eq(
-                        'envanter_donemi', donem
-                    ).limit(batch_size).offset(offset).execute()
-
-                    if result.data:
-                        all_data.extend(result.data)
-                        if len(result.data) < batch_size:
-                            break
-                        offset += batch_size
-                        retry_count = 0  # Başarılı, retry sayısını sıfırla
-                    else:
-                        break
-                except Exception as batch_err:
-                    retry_count += 1
-                    if retry_count >= max_retries:
-                        st.warning(f"⚠️ Dönem {donem} için veri çekilemedi: {str(batch_err)[:50]}")
-                        break
-                    time.sleep(1)  # 1 saniye bekle ve tekrar dene
-                    continue
-
-        if all_data:
-            df = pd.DataFrame(all_data)
-            # bolge_sorumlusu yoksa veya hepsi null ise boş string ekle
-            if 'bolge_sorumlusu' not in df.columns:
-                df['bolge_sorumlusu'] = ''
-            else:
-                df['bolge_sorumlusu'] = df['bolge_sorumlusu'].fillna('')
-            return df
-        return None
-    except Exception as e:
-        st.error(f"Veri çekme hatası: {e}")
-        return None
-
-def get_onceki_envanter(magaza_kodu, malzeme_kodu, envanter_donemi, envanter_sayisi):
-    """Bir önceki envanter sayısındaki kaydı getir"""
-    if supabase is None or envanter_sayisi <= 1:
-        return None
-
-    try:
-        result = supabase.table(TABLE_NAME).select('*').eq(
-            'magaza_kodu', magaza_kodu
-        ).eq(
-            'malzeme_kodu', malzeme_kodu
-        ).eq(
-            'envanter_donemi', envanter_donemi
-        ).eq(
-            'envanter_sayisi', envanter_sayisi - 1
-        ).execute()
-
-        if result.data:
-            return result.data[0]
-        return None
-    except:
-        return None
+# get_onceki_envanter artık kullanılmıyor - veri zaten gm_df'de
 
 
 # ==================== GOOGLE SHEETS KAMERA ENTEGRASYONU ====================
 IPTAL_SHEETS_ID = '1F4Th-xZ2n0jDyayy5vayIN2j-EGUzqw5Akd8mXQVh4o'
 IPTAL_SHEET_NAME = 'IptalVerisi'
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300, show_spinner=False)
 def get_iptal_verisi_from_sheets():
     """Google Sheets'ten iptal verisini çeker (public sheet)"""
     try:
@@ -579,52 +510,41 @@ def get_iptal_verisi_from_sheets():
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=300, show_spinner=False)  # 5 dakika cache
+@st.cache_data(ttl=1800, show_spinner=False)  # 30 dk cache - PURE DATA
 def get_envanter_serisi(magaza_kodu, malzeme_kodu):
-    """Belirli mağaza+ürün için tüm envanter serisini getirir (delta hesabı için)"""
-    if supabase is None:
+    """Belirli mağaza+ürün için tüm envanter serisini getirir - loader'dan"""
+    raw_data = fetch_envanter_serisi(magaza_kodu, malzeme_kodu)
+    if not raw_data:
         return []
 
-    try:
-        result = supabase.table(TABLE_NAME).select(
-            'envanter_sayisi,sayim_miktari,fark_tutari,fire_tutari,envanter_donemi'
-        ).eq('magaza_kodu', magaza_kodu).eq('malzeme_kodu', malzeme_kodu).order(
-            'envanter_sayisi', desc=False
-        ).execute()
+    # Delta hesapla
+    seri = []
+    onceki_kum = 0
+    onceki_fark = 0
+    onceki_fire = 0
+    for kayit in raw_data:
+        env_sayisi = kayit.get('envanter_sayisi', 0) or 0
+        kumulatif = float(kayit.get('sayim_miktari', 0) or 0)
+        fark_kum = float(kayit.get('fark_tutari', 0) or 0)
+        fire_kum = float(kayit.get('fire_tutari', 0) or 0)
+        delta = kumulatif - onceki_kum
+        fark_delta = fark_kum - onceki_fark
+        fire_delta = fire_kum - onceki_fire
+        seri.append({
+            'envanter': env_sayisi,
+            'delta': delta,
+            'kumulatif': kumulatif,
+            'fark_tutari': fark_delta,
+            'fark_kumulatif': fark_kum,
+            'fire_tutari': fire_delta,
+            'fire_kumulatif': fire_kum,
+            'donem': kayit.get('envanter_donemi', '')
+        })
+        onceki_kum = kumulatif
+        onceki_fark = fark_kum
+        onceki_fire = fire_kum
 
-        if not result.data:
-            return []
-
-        # Delta hesapla
-        seri = []
-        onceki_kum = 0
-        onceki_fark = 0
-        onceki_fire = 0
-        for kayit in result.data:
-            env_sayisi = kayit.get('envanter_sayisi', 0) or 0
-            kumulatif = float(kayit.get('sayim_miktari', 0) or 0)
-            fark_kum = float(kayit.get('fark_tutari', 0) or 0)
-            fire_kum = float(kayit.get('fire_tutari', 0) or 0)
-            delta = kumulatif - onceki_kum
-            fark_delta = fark_kum - onceki_fark
-            fire_delta = fire_kum - onceki_fire
-            seri.append({
-                'envanter': env_sayisi,
-                'delta': delta,
-                'kumulatif': kumulatif,
-                'fark_tutari': fark_delta,
-                'fark_kumulatif': fark_kum,
-                'fire_tutari': fire_delta,
-                'fire_kumulatif': fire_kum,
-                'donem': kayit.get('envanter_donemi', '')
-            })
-            onceki_kum = kumulatif
-            onceki_fark = fark_kum
-            onceki_fire = fire_kum
-
-        return seri
-    except Exception as e:
-        return []
+    return seri
 
 
 def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
@@ -779,46 +699,16 @@ def get_kamera_bilgisi(malzeme_kodu, iptal_data, kamera_limit_gun=15, yukleme_ta
 
 
 # ==================== İÇ HIRSIZLIK VERİ FONKSİYONLARI ====================
-def get_ic_hirsizlik_data(donemler):
-    """
-    İç hırsızlık analizi için ürün bazlı veri çeker.
-    Gerekli sütunlar: magaza_kodu, malzeme_kodu, malzeme_tanimi, satis_fiyati,
-                      iptal_satir_miktari, fark_miktari
-    """
-    if supabase is None or not donemler:
+@st.cache_data(ttl=600, show_spinner=False)  # 10 dk cache
+def get_ic_hirsizlik_data(donemler: tuple):
+    """İç hırsızlık analizi için ürün bazlı veri çeker - loader'dan"""
+    if not donemler:
         return None
 
-    try:
-        all_data = []
-        batch_size = 1000
-
-        for donem in donemler:
-            offset = 0
-            while True:
-                try:
-                    result = supabase.table(TABLE_NAME).select(
-                        'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,'
-                        'malzeme_kodu,malzeme_tanimi,satis_fiyati,'
-                        'iptal_satir_miktari,fark_miktari,fark_tutari,yukleme_tarihi'
-                    ).eq(
-                        'envanter_donemi', donem
-                    ).limit(batch_size).offset(offset).execute()
-
-                    if result.data:
-                        all_data.extend(result.data)
-                        if len(result.data) < batch_size:
-                            break
-                        offset += batch_size
-                    else:
-                        break
-                except:
-                    break
-
-        if all_data:
-            return pd.DataFrame(all_data)
-        return None
-    except:
-        return None
+    all_data = fetch_ic_hirsizlik_data(list(donemler))
+    if all_data:
+        return pd.DataFrame(all_data)
+    return None
 
 
 def hesapla_ic_hirsizlik_sayisi(df, birim_col, birim_value):
@@ -992,8 +882,8 @@ def main_app():
             st.warning("Henüz veri yüklenmemiş. SM'ler Excel yükledikçe veriler burada görünecek.")
 
         if selected_periods:
-            # Veriyi çek
-            gm_df = get_gm_ozet_data(selected_periods)
+            # Veriyi çek (tuple for cache)
+            gm_df = get_gm_ozet_data(tuple(selected_periods))
 
             if gm_df is not None and len(gm_df) > 0:
                 st.caption(f"📊 {len(gm_df)} satır veri çekildi")
@@ -1524,8 +1414,8 @@ def main_app():
                     bolge_toplam_acik = bolge_toplam_fark + bolge_toplam_fire
                     bolge_acik_oran = (bolge_toplam_acik / bolge_toplam_satis * 100) if bolge_toplam_satis else 0
 
-                    # İç hırsızlık verisi çek (ürün bazlı)
-                    ic_df = get_ic_hirsizlik_data(selected_periods)
+                    # İç hırsızlık verisi çek (ürün bazlı, tuple for cache)
+                    ic_df = get_ic_hirsizlik_data(tuple(selected_periods))
 
                     # Bölge özet bilgisi
                     st.markdown(f"**📊 Bölge Referans Değerleri:** Açık Oranı: **%{bolge_acik_oran:.2f}** | Satış: ₺{bolge_toplam_satis:,.0f} | Açık: ₺{bolge_toplam_acik:,.0f}")
@@ -2188,7 +2078,7 @@ def main_app():
                     st.error(f"❌ Eksik sütunlar: {', '.join(eksik_sutunlar)}")
                 else:
                     # Otomatik işlem - buton yok
-                    if supabase:
+                    if create_client_for_write():
                         # Excel'den mağaza kodları ve dönem al
                         magaza_kodlari = df['Mağaza Kodu'].astype(str).unique().tolist()
                         envanter_donemi = df['Envanter Dönemi'].iloc[0] if 'Envanter Dönemi' in df.columns else None
