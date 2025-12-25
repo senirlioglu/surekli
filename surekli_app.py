@@ -492,7 +492,6 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
     col_saat = 'Fiş Saati'
     col_miktar = 'Miktar'
     col_islem_no = 'İşlem Numarası'
-    col_kasa = 'Kasa numarası - Anahtar'
 
     # Sütunlar yoksa index ile dene veya benzer isim ara
     cols = df_iptal.columns.tolist()
@@ -507,11 +506,12 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
     if col_islem_no not in cols and len(cols) > 36:
         col_islem_no = cols[36]
 
-    # Kasa sütunu için esnek arama (tam eşleşme yoksa "Kasa" içeren sütun bul)
-    if col_kasa not in cols:
-        kasa_cols = [c for c in cols if 'Kasa' in c or 'kasa' in c]
-        if kasa_cols:
-            col_kasa = kasa_cols[0]
+    # Kasa sütununu dinamik bul ("Kasa" içeren ilk sütun)
+    col_kasa = None
+    for c in cols:
+        if 'kasa' in c.lower():
+            col_kasa = c
+            break
 
     # Kodları temizle
     def clean_code(x):
@@ -539,9 +539,13 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
         saat = row.get(col_saat, '')
         miktar = row.get(col_miktar, 0)
         islem_no = row.get(col_islem_no, '')
-        kasa_no_raw = row.get(col_kasa, '')
-        # Kasa numarasını temizle (1.0 → 1, nan → '')
-        kasa_no = str(kasa_no_raw).replace('.0', '').strip() if pd.notna(kasa_no_raw) else ''
+
+        # Kasa numarasını oku ve temizle
+        kasa_no = ''
+        if col_kasa and col_kasa in row.index:
+            kasa_no_raw = row[col_kasa]
+            if pd.notna(kasa_no_raw):
+                kasa_no = str(kasa_no_raw).replace('.0', '').strip()
 
         if malzeme not in result:
             result[malzeme] = []
