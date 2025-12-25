@@ -1730,26 +1730,26 @@ def main_app():
                         # Yüksek sayım yapan ürünleri bul (sayim_miktari >= 50)
                         YUKSEK_SAYIM_ESIK = 50
 
-                        # Mevcut gm_df'den yüksek sayımlı ürünleri filtrele (duplicate'sız)
+                        # HIZLI pandas yöntemi - vektörel filtreleme
                         yuksek_sayim_urunler = []
-                        gorulmus = set()  # mağaza+ürün duplicate kontrolü
-                        for _, row in gm_df.iterrows():
-                            sayim_mik = row.get('sayim_miktari', 0)
-                            if pd.notna(sayim_mik) and float(sayim_mik) >= YUKSEK_SAYIM_ESIK:
-                                mag_urun_key = f"{row.get('magaza_kodu', '')}_{row.get('malzeme_kodu', '')}"
-                                if mag_urun_key in gorulmus:
-                                    continue  # duplicate, atla
-                                gorulmus.add(mag_urun_key)
+                        if 'sayim_miktari' in gm_df.columns:
+                            # Pandas ile hızlı filtreleme
+                            ys_df = gm_df[gm_df['sayim_miktari'].fillna(0).astype(float) >= YUKSEK_SAYIM_ESIK].copy()
+                            # Duplicate'ları kaldır (mağaza+ürün bazında ilk kaydı al)
+                            ys_df = ys_df.drop_duplicates(subset=['magaza_kodu', 'malzeme_kodu'], keep='first')
+
+                            # DataFrame'den listeye dönüştür
+                            for _, row in ys_df.iterrows():
                                 yuksek_sayim_urunler.append({
                                     'magaza_kodu': str(row.get('magaza_kodu', '')),
-                                    'magaza_adi': str(row.get('magaza_tanim', '')),
+                                    'magaza_adi': str(row.get('magaza_tanim', ''))[:30] if row.get('magaza_tanim') else '',
                                     'sm': str(row.get('satis_muduru', '')),
                                     'bs': str(row.get('bolge_sorumlusu', '')),
                                     'malzeme_kodu': str(row.get('malzeme_kodu', '')),
                                     'malzeme_adi': str(row.get('malzeme_tanimi', ''))[:40] if row.get('malzeme_tanimi') else '',
-                                    'sayim_miktari': float(sayim_mik),
-                                    'envanter_sayisi': int(row.get('envanter_sayisi', 0)) if pd.notna(row.get('envanter_sayisi')) else 0,
-                                    'satis_fiyati': float(row.get('satis_fiyati', 0)) if pd.notna(row.get('satis_fiyati')) else 0
+                                    'sayim_miktari': float(row.get('sayim_miktari', 0) or 0),
+                                    'envanter_sayisi': int(row.get('envanter_sayisi', 0) or 0),
+                                    'satis_fiyati': float(row.get('satis_fiyati', 0) or 0)
                                 })
 
                         ys_sub_tabs = st.tabs(["👔 SM", "📋 BS", "🏪 Mağaza"])
