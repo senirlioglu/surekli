@@ -436,13 +436,15 @@ def get_mevcut_envanter_sayilari(magaza_kodlari, envanter_donemi):
         return {}
 
 
-# ==================== KRONİK HESAPLAMA HELPER (VEKTÖREL) ====================
+# ==================== KRONİK HESAPLAMA HELPER (VEKTÖREL + ÖN FİLTRELEME) ====================
 def _find_kronik_fast(gm_df: pd.DataFrame, value_col: str, threshold: float):
     """
     Ardışık iki envanter sayımında (envanter_sayisi ardışık) value_col < threshold koşulunu sağlayan
     mağaza+ürünleri hızlı (vektörel) bulur.
     value_col: 'fark_tutari' veya 'fire_tutari'
     threshold: ör. -500
+
+    Optimizasyon: Önce threshold altındaki satırları filtrele, sonra sort/shift yap.
     """
     need_cols = [
         'magaza_kodu', 'magaza_tanim',
@@ -454,15 +456,17 @@ def _find_kronik_fast(gm_df: pd.DataFrame, value_col: str, threshold: float):
         if c not in gm_df.columns:
             return []
 
-    df = gm_df[need_cols].copy()
+    # ADIM 1: Sadece gerekli kolonları al ve tip dönüşümü yap
+    base = gm_df[need_cols].copy()
+    base[value_col] = pd.to_numeric(base[value_col], errors='coerce').fillna(0)
+    base['envanter_sayisi'] = pd.to_numeric(base['envanter_sayisi'], errors='coerce')
 
-    df['envanter_sayisi'] = pd.to_numeric(df['envanter_sayisi'], errors='coerce')
-    df[value_col] = pd.to_numeric(df[value_col], errors='coerce').fillna(0)
-
-    df = df.dropna(subset=['envanter_sayisi'])
+    # ADIM 2: ÖN FİLTRELEME - Sadece eşik altındaki satırlar (10x-100x hızlanma)
+    df = base[(base[value_col] < threshold) & (base['envanter_sayisi'].notna())].copy()
     if df.empty:
         return []
 
+    # ADIM 3: Sort + Shift
     df = df.sort_values(['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi'])
 
     g = df.groupby(['magaza_kodu', 'malzeme_kodu'], sort=False)
@@ -1487,66 +1491,82 @@ def main_app():
                     st.markdown(f"**📊 Bölge Referans Değerleri:** Açık Oranı: **%{bolge_acik_oran:.2f}** | Satış: ₺{bolge_toplam_satis:,.0f} | Açık: ₺{bolge_toplam_acik:,.0f}")
                     st.markdown("---")
 
-                    # ==================== TÜM RİSK VERİLERİNİ HESAPLA ====================
-                    # SM verileri
-                    sm_riskler = []
-                    if 'satis_muduru' in gm_df.columns:
-                        sm_risk_df = gm_df.groupby('satis_muduru').agg({
-                            'fark_tutari': 'sum', 'fire_tutari': 'sum',
-                            'satis_hasilati': 'sum', 'magaza_kodu': 'nunique'
-                        }).reset_index()
-                        for _, row in sm_risk_df.iterrows():
-                            sm_acik = row['fark_tutari'] + row['fire_tutari']
-                            ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'satis_muduru', row['satis_muduru'])
-                            risk = hesapla_birim_risk_v2({'acik': sm_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
-                            sm_riskler.append({
-                                'SM': row['satis_muduru'], 'Mağaza': row['magaza_kodu'],
-                                'Satış': row['satis_hasilati'], 'Açık': sm_acik,
-                                'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
-                                'Puan': risk['puan'], 'Seviye': risk['seviye'],
-                                'emoji': risk['emoji'], 'detay': risk['detay'],
-                                'ic_urunler': ic_urunler, 'ic_sayisi': ic_sayisi
-                            })
+                    # ==================== TÜM RİSK VERİLERİNİ HESAPLA (SESSION_STATE CACHE) ====================
+                    period_key = tuple(selected_periods)
 
-                    # BS verileri
-                    bs_riskler = []
-                    if 'bolge_sorumlusu' in gm_df.columns:
-                        bs_df_risk = gm_df[gm_df['bolge_sorumlusu'].notna() & (gm_df['bolge_sorumlusu'] != '')]
-                        if len(bs_df_risk) > 0:
-                            bs_risk_df = bs_df_risk.groupby('bolge_sorumlusu').agg({
+                    # Dönem değişmediyse cache'den al
+                    if st.session_state.get("risk_cache_key") != period_key:
+                        st.session_state["risk_cache_key"] = period_key
+
+                        # SM verileri
+                        sm_riskler = []
+                        if 'satis_muduru' in gm_df.columns:
+                            sm_risk_df = gm_df.groupby('satis_muduru').agg({
                                 'fark_tutari': 'sum', 'fire_tutari': 'sum',
                                 'satis_hasilati': 'sum', 'magaza_kodu': 'nunique'
                             }).reset_index()
-                            for _, row in bs_risk_df.iterrows():
-                                bs_acik = row['fark_tutari'] + row['fire_tutari']
-                                ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'bolge_sorumlusu', row['bolge_sorumlusu'])
-                                risk = hesapla_birim_risk_v2({'acik': bs_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
-                                bs_riskler.append({
-                                    'BS': row['bolge_sorumlusu'], 'Mağaza': row['magaza_kodu'],
-                                    'Satış': row['satis_hasilati'], 'Açık': bs_acik,
+                            for _, row in sm_risk_df.iterrows():
+                                sm_acik = row['fark_tutari'] + row['fire_tutari']
+                                ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'satis_muduru', row['satis_muduru'])
+                                risk = hesapla_birim_risk_v2({'acik': sm_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
+                                sm_riskler.append({
+                                    'SM': row['satis_muduru'], 'Mağaza': row['magaza_kodu'],
+                                    'Satış': row['satis_hasilati'], 'Açık': sm_acik,
                                     'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
                                     'Puan': risk['puan'], 'Seviye': risk['seviye'],
                                     'emoji': risk['emoji'], 'detay': risk['detay'],
                                     'ic_urunler': ic_urunler, 'ic_sayisi': ic_sayisi
                                 })
 
-                    # Mağaza verileri
-                    mag_riskler = []
-                    mag_risk_df = gm_df.groupby(['magaza_kodu', 'magaza_tanim']).agg({
-                        'fark_tutari': 'sum', 'fire_tutari': 'sum', 'satis_hasilati': 'sum'
-                    }).reset_index()
-                    for _, row in mag_risk_df.iterrows():
-                        mag_acik = row['fark_tutari'] + row['fire_tutari']
-                        ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'magaza_kodu', row['magaza_kodu'])
-                        risk = hesapla_birim_risk_v2({'acik': mag_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
-                        mag_riskler.append({
-                            'Kod': row['magaza_kodu'], 'Mağaza': row['magaza_tanim'],
-                            'Satış': row['satis_hasilati'], 'Açık': mag_acik,
-                            'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
-                            'Puan': risk['puan'], 'Seviye': risk['seviye'],
-                            'emoji': risk['emoji'], 'detay': risk['detay'],
-                            'ic_urunler': ic_urunler, 'ic_sayisi': ic_sayisi
-                        })
+                        # BS verileri
+                        bs_riskler = []
+                        if 'bolge_sorumlusu' in gm_df.columns:
+                            bs_df_risk = gm_df[gm_df['bolge_sorumlusu'].notna() & (gm_df['bolge_sorumlusu'] != '')]
+                            if len(bs_df_risk) > 0:
+                                bs_risk_df = bs_df_risk.groupby('bolge_sorumlusu').agg({
+                                    'fark_tutari': 'sum', 'fire_tutari': 'sum',
+                                    'satis_hasilati': 'sum', 'magaza_kodu': 'nunique'
+                                }).reset_index()
+                                for _, row in bs_risk_df.iterrows():
+                                    bs_acik = row['fark_tutari'] + row['fire_tutari']
+                                    ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'bolge_sorumlusu', row['bolge_sorumlusu'])
+                                    risk = hesapla_birim_risk_v2({'acik': bs_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
+                                    bs_riskler.append({
+                                        'BS': row['bolge_sorumlusu'], 'Mağaza': row['magaza_kodu'],
+                                        'Satış': row['satis_hasilati'], 'Açık': bs_acik,
+                                        'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
+                                        'Puan': risk['puan'], 'Seviye': risk['seviye'],
+                                        'emoji': risk['emoji'], 'detay': risk['detay'],
+                                        'ic_urunler': ic_urunler, 'ic_sayisi': ic_sayisi
+                                    })
+
+                        # Mağaza verileri
+                        mag_riskler = []
+                        mag_risk_df = gm_df.groupby(['magaza_kodu', 'magaza_tanim']).agg({
+                            'fark_tutari': 'sum', 'fire_tutari': 'sum', 'satis_hasilati': 'sum'
+                        }).reset_index()
+                        for _, row in mag_risk_df.iterrows():
+                            mag_acik = row['fark_tutari'] + row['fire_tutari']
+                            ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'magaza_kodu', row['magaza_kodu'])
+                            risk = hesapla_birim_risk_v2({'acik': mag_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
+                            mag_riskler.append({
+                                'Kod': row['magaza_kodu'], 'Mağaza': row['magaza_tanim'],
+                                'Satış': row['satis_hasilati'], 'Açık': mag_acik,
+                                'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
+                                'Puan': risk['puan'], 'Seviye': risk['seviye'],
+                                'emoji': risk['emoji'], 'detay': risk['detay'],
+                                'ic_urunler': ic_urunler, 'ic_sayisi': ic_sayisi
+                            })
+
+                        # Cache'e kaydet
+                        st.session_state["sm_riskler"] = sm_riskler
+                        st.session_state["bs_riskler"] = bs_riskler
+                        st.session_state["mag_riskler"] = mag_riskler
+
+                    # Cache'den oku
+                    sm_riskler = st.session_state.get("sm_riskler", [])
+                    bs_riskler = st.session_state.get("bs_riskler", [])
+                    mag_riskler = st.session_state.get("mag_riskler", [])
 
                     # ==================== ANA SEKMELER: RİSK TİPİ ====================
                     risk_type_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık", "🔢 Yüksek Sayım", "📉 Kronik Açık", "🔥 Kronik Fire"])
@@ -1832,8 +1852,13 @@ def main_app():
 
                         # Butonla hesaplama tetikle
                         if st.button("📉 Kronik Açık Hesapla", key="btn_kronik_acik"):
-                            with st.spinner("Hesaplanıyor..."):
-                                st.session_state["kronik_acik_urunler"] = _find_kronik_fast(gm_df, "fark_tutari", KRONIK_ESIK)
+                            try:
+                                with st.spinner("Hesaplanıyor..."):
+                                    st.session_state["kronik_acik_urunler"] = _find_kronik_fast(gm_df, "fark_tutari", KRONIK_ESIK)
+                            except Exception as e:
+                                st.error("Kronik Açık hesaplama hatası:")
+                                st.exception(e)
+                                st.session_state["kronik_acik_urunler"] = []
 
                         kronik_acik_urunler = st.session_state.get("kronik_acik_urunler")
 
@@ -1927,8 +1952,13 @@ def main_app():
 
                         # Butonla hesaplama tetikle
                         if st.button("🔥 Kronik Fire Hesapla", key="btn_kronik_fire"):
-                            with st.spinner("Hesaplanıyor..."):
-                                st.session_state["kronik_fire_urunler"] = _find_kronik_fast(gm_df, "fire_tutari", KRONIK_FIRE_ESIK)
+                            try:
+                                with st.spinner("Hesaplanıyor..."):
+                                    st.session_state["kronik_fire_urunler"] = _find_kronik_fast(gm_df, "fire_tutari", KRONIK_FIRE_ESIK)
+                            except Exception as e:
+                                st.error("Kronik Fire hesaplama hatası:")
+                                st.exception(e)
+                                st.session_state["kronik_fire_urunler"] = []
 
                         kronik_fire_urunler = st.session_state.get("kronik_fire_urunler")
 
