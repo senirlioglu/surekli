@@ -1954,10 +1954,10 @@ def main_app():
                             st.session_state["kronik_acik_period_key"] = period_key
                             st.session_state["kronik_acik_urunler"] = None
 
-                        # Otomatik hesapla (cache'de yoksa)
-                        if st.session_state.get("kronik_acik_urunler") is None:
+                        # Butonla hesaplama tetikle
+                        if st.button("📉 Kronik Açık Hesapla", key="btn_kronik_acik"):
                             try:
-                                with st.spinner("Kronik Açık hesaplanıyor..."):
+                                with st.spinner("Hesaplanıyor..."):
                                     st.session_state["kronik_acik_urunler"] = _find_kronik_fast(gm_df, "fark_tutari", KRONIK_ESIK)
                             except Exception as e:
                                 st.error("Kronik Açık hesaplama hatası:")
@@ -1966,15 +1966,14 @@ def main_app():
 
                         kronik_acik_urunler = st.session_state.get("kronik_acik_urunler")
 
-                        if kronik_acik_urunler is not None:
-                            if not kronik_acik_urunler:
-                                st.success("🟢 Kronik açık bulunamadı!")
-                            else:
-                                st.caption(f"Toplam {len(kronik_acik_urunler)} kronik açık ürün bulundu")
-                                kronik_view = st.selectbox("Görünüm:", ["👔 SM", "📋 BS", "🏪 Mağaza"], key="kronik_acik_view")
+                        if kronik_acik_urunler is None:
+                            st.info("📉 Kronik Açık hesaplamak için yukarıdaki butona tıklayın.")
+                        else:
+                            kronik_sub_tabs = st.tabs(["👔 SM", "📋 BS", "🏪 Mağaza"])
 
-                                # ----- SM Kronik Açık -----
-                                if kronik_view == "👔 SM":
+                            # ----- SM Kronik Açık -----
+                            with kronik_sub_tabs[0]:
+                                if kronik_acik_urunler:
                                     sm_kronik = {}
                                     for u in kronik_acik_urunler:
                                         sm = u['sm']
@@ -1993,9 +1992,12 @@ def main_app():
                                             for urun in sorted(data['urunler'], key=lambda x: x['toplam'])[:20]:
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
                                                 st.markdown(f"  📉 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_val']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_val']:,.0f}**] | Toplam: :red[**₺{urun['toplam']:,.0f}**]")
+                                else:
+                                    st.success("🟢 Kronik açık bulunamadı!")
 
-                                # ----- BS Kronik Açık -----
-                                elif kronik_view == "📋 BS":
+                            # ----- BS Kronik Açık -----
+                            with kronik_sub_tabs[1]:
+                                if kronik_acik_urunler:
                                     bs_kronik = {}
                                     for u in kronik_acik_urunler:
                                         bs = u['bs']
@@ -2014,9 +2016,12 @@ def main_app():
                                             for urun in sorted(data['urunler'], key=lambda x: x['toplam'])[:20]:
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
                                                 st.markdown(f"  📉 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_val']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_val']:,.0f}**] | Toplam: :red[**₺{urun['toplam']:,.0f}**]")
+                                else:
+                                    st.success("🟢 Kronik açık bulunamadı!")
 
-                                # ----- Mağaza Kronik Açık -----
-                                elif kronik_view == "🏪 Mağaza":
+                            # ----- Mağaza Kronik Açık -----
+                            with kronik_sub_tabs[2]:
+                                if kronik_acik_urunler:
                                     mag_kronik = {}
                                     for u in kronik_acik_urunler:
                                         mag = u['magaza_kodu']
@@ -2035,6 +2040,8 @@ def main_app():
                                                 st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
                                                 st.markdown(f"  📉 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_val']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_val']:,.0f}**] | Toplam: :red[**₺{urun['toplam']:,.0f}**]")
                                     if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
+                                else:
+                                    st.success("🟢 Kronik açık bulunamadı!")
 
                     # ==================== KRONİK FİRE SEKMESİ ====================
                     with risk_type_tabs[4]:
@@ -2061,10 +2068,10 @@ def main_app():
                             st.session_state["kronik_fire_period_key"] = period_key
                             st.session_state["kronik_fire_urunler"] = None
 
-                        # Otomatik hesapla (cache'de yoksa)
-                        if st.session_state.get("kronik_fire_urunler") is None:
+                        # Butonla hesaplama tetikle
+                        if st.button("🔥 Kronik Fire Hesapla", key="btn_kronik_fire"):
                             try:
-                                with st.spinner("Kronik Fire hesaplanıyor..."):
+                                with st.spinner("Hesaplanıyor..."):
                                     st.session_state["kronik_fire_urunler"] = _find_kronik_fast(gm_df, "fire_tutari", KRONIK_FIRE_ESIK)
                             except Exception as e:
                                 st.error("Kronik Fire hesaplama hatası:")
@@ -2073,15 +2080,14 @@ def main_app():
 
                         kronik_fire_urunler = st.session_state.get("kronik_fire_urunler")
 
-                        if kronik_fire_urunler is not None:
-                            if not kronik_fire_urunler:
-                                st.success("🟢 Kronik fire bulunamadı!")
-                            else:
-                                st.caption(f"Toplam {len(kronik_fire_urunler)} kronik fire ürün bulundu")
-                                fire_view = st.selectbox("Görünüm:", ["👔 SM", "📋 BS", "🏪 Mağaza"], key="kronik_fire_view")
+                        if kronik_fire_urunler is None:
+                            st.info("🔥 Kronik Fire hesaplamak için yukarıdaki butona tıklayın.")
+                        else:
+                            fire_sub_tabs = st.tabs(["👔 SM", "📋 BS", "🏪 Mağaza"])
 
-                                # ----- SM Kronik Fire -----
-                                if fire_view == "👔 SM":
+                            # ----- SM Kronik Fire -----
+                            with fire_sub_tabs[0]:
+                                if kronik_fire_urunler:
                                     sm_fire = {}
                                     for u in kronik_fire_urunler:
                                         sm = u['sm']
@@ -2100,9 +2106,12 @@ def main_app():
                                             for urun in sorted(data['urunler'], key=lambda x: x['toplam'])[:20]:
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
                                                 st.markdown(f"  🔥 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_val']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_val']:,.0f}**] | Toplam: :red[**₺{urun['toplam']:,.0f}**]")
+                                else:
+                                    st.success("🟢 Kronik fire bulunamadı!")
 
-                                # ----- BS Kronik Fire -----
-                                elif fire_view == "📋 BS":
+                            # ----- BS Kronik Fire -----
+                            with fire_sub_tabs[1]:
+                                if kronik_fire_urunler:
                                     bs_fire = {}
                                     for u in kronik_fire_urunler:
                                         bs = u['bs']
@@ -2121,9 +2130,12 @@ def main_app():
                                             for urun in sorted(data['urunler'], key=lambda x: x['toplam'])[:20]:
                                                 st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
                                                 st.markdown(f"  🔥 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_val']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_val']:,.0f}**] | Toplam: :red[**₺{urun['toplam']:,.0f}**]")
+                                else:
+                                    st.success("🟢 Kronik fire bulunamadı!")
 
-                                # ----- Mağaza Kronik Fire -----
-                                elif fire_view == "🏪 Mağaza":
+                            # ----- Mağaza Kronik Fire -----
+                            with fire_sub_tabs[2]:
+                                if kronik_fire_urunler:
                                     mag_fire = {}
                                     for u in kronik_fire_urunler:
                                         mag = u['magaza_kodu']
@@ -2142,6 +2154,8 @@ def main_app():
                                                 st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
                                                 st.markdown(f"  🔥 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_val']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_val']:,.0f}**] | Toplam: :red[**₺{urun['toplam']:,.0f}**]")
                                     if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
+                                else:
+                                    st.success("🟢 Kronik fire bulunamadı!")
 
                 else:
                     st.info("📥 Veri bulunamadı")
