@@ -1865,40 +1865,48 @@ def main_app():
 
                     # ==================== KRONİK AÇIK SEKMESİ ====================
                     with risk_type_tabs[3]:
-                        st.caption("Kural: Ardışık 2 envanter sayımında fark_tutari < -500 TL | Seri varsa analiz yapılır")
+                        st.caption("Kural: Ardışık 2 envanter sayımında fark_tutari < -500 TL")
                         KRONIK_ESIK = -500  # TL
 
-                        # Kronik açık ürünleri bul
+                        # Kronik açık ürünleri bul - HIZLI pandas yöntemi (SQL yok!)
                         kronik_acik_urunler = []
-                        gorulmus_kronik = set()
 
-                        for _, row in gm_df.iterrows():
-                            mag_urun_key = f"{row.get('magaza_kodu', '')}_{row.get('malzeme_kodu', '')}"
-                            if mag_urun_key in gorulmus_kronik:
-                                continue
+                        # Mağaza+ürün gruplarını pandas ile hesapla
+                        if 'envanter_sayisi' in gm_df.columns and 'fark_tutari' in gm_df.columns:
+                            grouped = gm_df.groupby(['magaza_kodu', 'malzeme_kodu'])
 
-                            seri = get_envanter_serisi(str(row.get('magaza_kodu', '')), str(row.get('malzeme_kodu', '')))
-                            if seri and len(seri) >= 2:
-                                # Ardışık sayımlarda kronik açık kontrolü
-                                for i in range(1, len(seri)):
-                                    onceki = seri[i-1]
-                                    sonraki = seri[i]
+                            for (mag_kodu, mal_kodu), grup in grouped:
+                                if len(grup) < 2:
+                                    continue
+
+                                # Envanter sayısına göre sırala
+                                seri = grup.sort_values('envanter_sayisi')
+                                fark_list = seri['fark_tutari'].fillna(0).astype(float).tolist()
+                                env_list = seri['envanter_sayisi'].fillna(0).astype(int).tolist()
+
+                                # İlk satırdan mağaza bilgilerini al
+                                ilk = seri.iloc[0]
+
+                                # Ardışık kontrol
+                                for i in range(1, len(fark_list)):
+                                    onceki_fark = fark_list[i-1]
+                                    sonraki_fark = fark_list[i]
+
                                     # Her ikisinde de -500 TL'den kötü açık varsa
-                                    if onceki['fark_tutari'] < KRONIK_ESIK and sonraki['fark_tutari'] < KRONIK_ESIK:
-                                        gorulmus_kronik.add(mag_urun_key)
-                                        toplam_acik = onceki['fark_tutari'] + sonraki['fark_tutari']
+                                    if onceki_fark < KRONIK_ESIK and sonraki_fark < KRONIK_ESIK:
+                                        toplam_acik = onceki_fark + sonraki_fark
                                         kronik_acik_urunler.append({
-                                            'magaza_kodu': str(row.get('magaza_kodu', '')),
-                                            'magaza_adi': str(row.get('magaza_tanim', '')),
-                                            'sm': str(row.get('satis_muduru', '')),
-                                            'bs': str(row.get('bolge_sorumlusu', '')),
-                                            'malzeme_kodu': str(row.get('malzeme_kodu', '')),
-                                            'malzeme_adi': str(row.get('malzeme_tanimi', ''))[:40] if row.get('malzeme_tanimi') else '',
-                                            'onceki_fark': onceki['fark_tutari'],
-                                            'sonraki_fark': sonraki['fark_tutari'],
+                                            'magaza_kodu': str(mag_kodu),
+                                            'magaza_adi': str(ilk.get('magaza_tanim', ''))[:30] if ilk.get('magaza_tanim') else '',
+                                            'sm': str(ilk.get('satis_muduru', '')),
+                                            'bs': str(ilk.get('bolge_sorumlusu', '')),
+                                            'malzeme_kodu': str(mal_kodu),
+                                            'malzeme_adi': str(ilk.get('malzeme_tanimi', ''))[:40] if ilk.get('malzeme_tanimi') else '',
+                                            'onceki_fark': onceki_fark,
+                                            'sonraki_fark': sonraki_fark,
                                             'toplam_acik': toplam_acik,
-                                            'onceki_env': onceki['envanter'],
-                                            'sonraki_env': sonraki['envanter']
+                                            'onceki_env': env_list[i-1],
+                                            'sonraki_env': env_list[i]
                                         })
                                         break  # Bu ürün için bir tane bulduk
 
@@ -1978,40 +1986,48 @@ def main_app():
 
                     # ==================== KRONİK FİRE SEKMESİ ====================
                     with risk_type_tabs[4]:
-                        st.caption("Kural: Ardışık 2 envanter sayımında fire_tutari < -500 TL | Seri varsa analiz yapılır")
+                        st.caption("Kural: Ardışık 2 envanter sayımında fire_tutari < -500 TL")
                         KRONIK_FIRE_ESIK = -500  # TL
 
-                        # Kronik fire ürünleri bul
+                        # Kronik fire ürünleri bul - HIZLI pandas yöntemi (SQL yok!)
                         kronik_fire_urunler = []
-                        gorulmus_fire = set()
 
-                        for _, row in gm_df.iterrows():
-                            mag_urun_key = f"{row.get('magaza_kodu', '')}_{row.get('malzeme_kodu', '')}"
-                            if mag_urun_key in gorulmus_fire:
-                                continue
+                        # Mağaza+ürün gruplarını pandas ile hesapla
+                        if 'envanter_sayisi' in gm_df.columns and 'fire_tutari' in gm_df.columns:
+                            grouped = gm_df.groupby(['magaza_kodu', 'malzeme_kodu'])
 
-                            seri = get_envanter_serisi(str(row.get('magaza_kodu', '')), str(row.get('malzeme_kodu', '')))
-                            if seri and len(seri) >= 2:
-                                # Ardışık sayımlarda kronik fire kontrolü
-                                for i in range(1, len(seri)):
-                                    onceki = seri[i-1]
-                                    sonraki = seri[i]
+                            for (mag_kodu, mal_kodu), grup in grouped:
+                                if len(grup) < 2:
+                                    continue
+
+                                # Envanter sayısına göre sırala
+                                seri = grup.sort_values('envanter_sayisi')
+                                fire_list = seri['fire_tutari'].fillna(0).astype(float).tolist()
+                                env_list = seri['envanter_sayisi'].fillna(0).astype(int).tolist()
+
+                                # İlk satırdan mağaza bilgilerini al
+                                ilk = seri.iloc[0]
+
+                                # Ardışık kontrol
+                                for i in range(1, len(fire_list)):
+                                    onceki_fire = fire_list[i-1]
+                                    sonraki_fire = fire_list[i]
+
                                     # Her ikisinde de -500 TL'den kötü fire varsa
-                                    if onceki.get('fire_tutari', 0) < KRONIK_FIRE_ESIK and sonraki.get('fire_tutari', 0) < KRONIK_FIRE_ESIK:
-                                        gorulmus_fire.add(mag_urun_key)
-                                        toplam_fire = onceki.get('fire_tutari', 0) + sonraki.get('fire_tutari', 0)
+                                    if onceki_fire < KRONIK_FIRE_ESIK and sonraki_fire < KRONIK_FIRE_ESIK:
+                                        toplam_fire = onceki_fire + sonraki_fire
                                         kronik_fire_urunler.append({
-                                            'magaza_kodu': str(row.get('magaza_kodu', '')),
-                                            'magaza_adi': str(row.get('magaza_tanim', '')),
-                                            'sm': str(row.get('satis_muduru', '')),
-                                            'bs': str(row.get('bolge_sorumlusu', '')),
-                                            'malzeme_kodu': str(row.get('malzeme_kodu', '')),
-                                            'malzeme_adi': str(row.get('malzeme_tanimi', ''))[:40] if row.get('malzeme_tanimi') else '',
-                                            'onceki_fire': onceki.get('fire_tutari', 0),
-                                            'sonraki_fire': sonraki.get('fire_tutari', 0),
+                                            'magaza_kodu': str(mag_kodu),
+                                            'magaza_adi': str(ilk.get('magaza_tanim', ''))[:30] if ilk.get('magaza_tanim') else '',
+                                            'sm': str(ilk.get('satis_muduru', '')),
+                                            'bs': str(ilk.get('bolge_sorumlusu', '')),
+                                            'malzeme_kodu': str(mal_kodu),
+                                            'malzeme_adi': str(ilk.get('malzeme_tanimi', ''))[:40] if ilk.get('malzeme_tanimi') else '',
+                                            'onceki_fire': onceki_fire,
+                                            'sonraki_fire': sonraki_fire,
                                             'toplam_fire': toplam_fire,
-                                            'onceki_env': onceki['envanter'],
-                                            'sonraki_env': sonraki['envanter']
+                                            'onceki_env': env_list[i-1],
+                                            'sonraki_env': env_list[i]
                                         })
                                         break
 
