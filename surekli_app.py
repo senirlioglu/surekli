@@ -436,6 +436,85 @@ def get_mevcut_envanter_sayilari(magaza_kodlari, envanter_donemi):
         return {}
 
 
+# ==================== KOLON NORMALİZASYON ====================
+def _normalize_col_name(col: str) -> str:
+    """
+    Kolon ismini normalize et:
+    - Küçük harfe çevir
+    - Türkçe karakterleri dönüştür (ı->i, ş->s, ğ->g, ü->u, ö->o, ç->c, İ->i)
+    - Boşlukları _ yap
+    - Baştaki/sondaki boşlukları kaldır
+    """
+    if not isinstance(col, str):
+        return str(col).lower().strip()
+
+    col = col.lower().strip()
+    # Türkçe karakter dönüşümü
+    tr_map = {
+        'ı': 'i', 'İ': 'i', 'ş': 's', 'Ş': 's',
+        'ğ': 'g', 'Ğ': 'g', 'ü': 'u', 'Ü': 'u',
+        'ö': 'o', 'Ö': 'o', 'ç': 'c', 'Ç': 'c'
+    }
+    for tr, en in tr_map.items():
+        col = col.replace(tr, en)
+    # Boşlukları _ yap
+    col = col.replace(' ', '_')
+    return col
+
+
+# Excel kolon isimlerini iç kolon isimlerine map'le
+COLUMN_NAME_MAP = {
+    # Normalize edilmiş Excel kolon isimleri -> iç kolon isimleri
+    'magaza_kodu': 'magaza_kodu',
+    'magaza_tanim': 'magaza_tanim',
+    'satis_muduru': 'satis_muduru',
+    'bolge_sorumlusu': 'bolge_sorumlusu',
+    'malzeme_kodu': 'malzeme_kodu',
+    'malzeme_tanimi': 'malzeme_tanimi',
+    'envanter_sayisi': 'envanter_sayisi',
+    'fark_tutari': 'fark_tutari',
+    'fire_tutari': 'fire_tutari',
+    'envanter_donemi': 'envanter_donemi',
+    'satis_hasilati': 'satis_hasilati',
+    'sayim_miktari': 'sayim_miktari',
+    'satis_fiyati': 'satis_fiyati',
+    'iptal_satir_miktari': 'iptal_satir_miktari',
+    'fark_miktari': 'fark_miktari',
+    'depolama_kosulu': 'depolama_kosulu',
+}
+
+
+def normalize_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    DataFrame kolon isimlerini normalize et ve standart isimlere map'le.
+    """
+    if df is None or df.empty:
+        return df
+
+    # Kolon isimlerini normalize et
+    new_columns = {}
+    for col in df.columns:
+        norm_col = _normalize_col_name(col)
+        if norm_col in COLUMN_NAME_MAP:
+            new_columns[col] = COLUMN_NAME_MAP[norm_col]
+        else:
+            new_columns[col] = norm_col
+
+    return df.rename(columns=new_columns)
+
+
+def check_required_columns(df: pd.DataFrame, required: list) -> tuple:
+    """
+    Gerekli kolonların varlığını kontrol et.
+    Returns: (success: bool, missing: list)
+    """
+    if df is None or df.empty:
+        return False, required
+
+    missing = [col for col in required if col not in df.columns]
+    return len(missing) == 0, missing
+
+
 # ==================== KRONİK HESAPLAMA HELPER (VEKTÖREL + ÖN FİLTRELEME) ====================
 def _find_kronik_fast(gm_df: pd.DataFrame, value_col: str, threshold: float):
     """
@@ -956,6 +1035,17 @@ def main_app():
             gm_df = get_gm_ozet_data(tuple(selected_periods))
 
             if gm_df is not None and len(gm_df) > 0:
+                # Kolon isimlerini normalize et
+                gm_df = normalize_dataframe_columns(gm_df)
+
+                # Gerekli kolonları kontrol et
+                required_cols = ['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi', 'fark_tutari', 'fire_tutari']
+                cols_ok, missing_cols = check_required_columns(gm_df, required_cols)
+                if not cols_ok:
+                    st.error(f"❌ Gerekli kolonlar eksik: {', '.join(missing_cols)}")
+                    st.write("Mevcut kolonlar:", list(gm_df.columns))
+                    st.stop()
+
                 st.caption(f"📊 {len(gm_df)} satır veri çekildi")
 
                 magaza_sayisi = gm_df['magaza_kodu'].nunique()
@@ -1842,6 +1932,21 @@ def main_app():
                     # ==================== KRONİK AÇIK SEKMESİ ====================
                     with risk_type_tabs[3]:
                         st.caption("Kural: Ardışık 2 envanter sayımında fark_tutari < -500 TL")
+
+                        # DEBUG: Veri kontrolü
+                        with st.expander("🔍 Debug Bilgisi", expanded=False):
+                            if gm_df is not None:
+                                st.write(f"DataFrame shape: {gm_df.shape}")
+                                st.write(f"Kolonlar: {list(gm_df.columns)}")
+                                required = ['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi', 'fark_tutari', 'satis_muduru']
+                                missing = [c for c in required if c not in gm_df.columns]
+                                if missing:
+                                    st.error(f"Eksik kolonlar: {missing}")
+                                else:
+                                    st.success("Tüm gerekli kolonlar mevcut")
+                            else:
+                                st.error("gm_df is None!")
+
                         KRONIK_ESIK = -500
 
                         # Session state cache - dönem değişirse sıfırla
@@ -1942,6 +2047,21 @@ def main_app():
                     # ==================== KRONİK FİRE SEKMESİ ====================
                     with risk_type_tabs[4]:
                         st.caption("Kural: Ardışık 2 envanter sayımında fire_tutari < -500 TL")
+
+                        # DEBUG: Veri kontrolü
+                        with st.expander("🔍 Debug Bilgisi", expanded=False):
+                            if gm_df is not None:
+                                st.write(f"DataFrame shape: {gm_df.shape}")
+                                st.write(f"Kolonlar: {list(gm_df.columns)}")
+                                required = ['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi', 'fire_tutari', 'satis_muduru']
+                                missing = [c for c in required if c not in gm_df.columns]
+                                if missing:
+                                    st.error(f"Eksik kolonlar: {missing}")
+                                else:
+                                    st.success("Tüm gerekli kolonlar mevcut")
+                            else:
+                                st.error("gm_df is None!")
+
                         KRONIK_FIRE_ESIK = -500
 
                         # Session state cache - dönem değişirse sıfırla
