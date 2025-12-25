@@ -215,41 +215,73 @@ COLUMN_MAPPING = {
     'Malzeme Tanımı': 'malzeme_tanimi',
     'Satış Fiyatı': 'satis_fiyati',
     'Envanter Sayisi': 'envanter_sayisi',
-    'Sayım Miktarı': 'sayim_miktari',
-    'Sayım Tutarı': 'sayim_tutari',
-    'Kaydi Miktar': 'kaydi_miktar',
-    'Kaydi Tutar': 'kaydi_tutar',
-    'Fark Miktarı': 'fark_miktari',
-    'Fark Tutarı': 'fark_tutari',
-    'Fire Miktarı': 'fire_miktari',
-    'Fire Tutarı': 'fire_tutari',
-    'Fark+Fire+Kısmi Envanter Miktarı': 'fark_fire_kismi_miktari',
-    'Fark+Fire+Kısmi Envanter Tutarı': 'fark_fire_kismi_tutari',
-    'Satış Miktarı': 'satis_miktari',
-    'Satış Hasılatı': 'satis_hasilati',
-    'İade Miktarı': 'iade_miktari',
-    'İade Tutarı': 'iade_tutari',
+    # Kümülatif alanlar (16 alan) - Excel'den gelen toplam değerler
+    'Sayım Miktarı': 'sayim_miktari_kum',
+    'Sayım Tutarı': 'sayim_tutari_kum',
+    'Kaydi Miktar': 'kaydi_miktar_kum',
+    'Kaydi Tutar': 'kaydi_tutar_kum',
+    'Fark Miktarı': 'fark_miktari_kum',
+    'Fark Tutarı': 'fark_tutari_kum',
+    'Fire Miktarı': 'fire_miktari_kum',
+    'Fire Tutarı': 'fire_tutari_kum',
+    'Fark+Fire+Kısmi Envanter Miktarı': 'fark_fire_kismi_miktari_kum',
+    'Fark+Fire+Kısmi Envanter Tutarı': 'fark_fire_kismi_tutari_kum',
+    'Satış Miktarı': 'satis_miktari_kum',
+    'Satış Hasılatı': 'satis_hasilati_kum',
+    'İade Miktarı': 'iade_miktari_kum',
+    'İade Tutarı': 'iade_tutari_kum',
+    'İptal Satır Miktarı': 'iptal_satir_miktari_kum',
+    'İptal Satır Tutarı': 'iptal_satir_tutari_kum',
+    # Kümülatif takibi gerekmeyen alanlar (doğrudan kaydet)
     'İptal Fişteki Miktar': 'iptal_fisteki_miktar',
     'İptal Fiş Tutarı': 'iptal_fis_tutari',
     'İptal GP Miktarı': 'iptal_gp_miktari',
     'İptal GP TUTARI': 'iptal_gp_tutari',
-    'İptal Satır Miktarı': 'iptal_satir_miktari',
-    'İptal Satır Tutarı': 'iptal_satir_tutari',
 }
+
+# Delta hesaplanacak kümülatif alanlar (16 alan): (kümülatif_sütun, delta_sütun)
+KUMULATIF_ALANLAR = [
+    ('sayim_miktari_kum', 'sayim_miktari'),
+    ('sayim_tutari_kum', 'sayim_tutari'),
+    ('kaydi_miktar_kum', 'kaydi_miktar'),
+    ('kaydi_tutar_kum', 'kaydi_tutar'),
+    ('fark_miktari_kum', 'fark_miktari'),
+    ('fark_tutari_kum', 'fark_tutari'),
+    ('fire_miktari_kum', 'fire_miktari'),
+    ('fire_tutari_kum', 'fire_tutari'),
+    ('fark_fire_kismi_miktari_kum', 'fark_fire_kismi_miktari'),
+    ('fark_fire_kismi_tutari_kum', 'fark_fire_kismi_tutari'),
+    ('satis_miktari_kum', 'satis_miktari'),
+    ('satis_hasilati_kum', 'satis_hasilati'),
+    ('iade_miktari_kum', 'iade_miktari'),
+    ('iade_tutari_kum', 'iade_tutari'),
+    ('iptal_satir_miktari_kum', 'iptal_satir_miktari'),
+    ('iptal_satir_tutari_kum', 'iptal_satir_tutari'),
+]
 
 def save_to_supabase(df):
     """
-    Excel verisini Supabase'e kaydet (upsert)
+    Excel verisini Supabase'e kaydet (delta hesaplamalı)
+
+    Mantık:
+    - Aynı mağaza+ürün+dönem+envanter_sayısı varsa: ATLA
+    - Yeni envanter_sayısı varsa: Delta hesapla ve EKLE
+    - Yeni dönemde: İlk kayıt olarak ekle (delta = kümülatif)
+
     Unique key: magaza_kodu + malzeme_kodu + envanter_donemi + envanter_sayisi
     """
     if supabase is None:
-        return 0, 0, "Supabase bağlantısı yok"
+        return 0, 0, 0, "Supabase bağlantısı yok"
 
     try:
-        # Yükleme tarihi - bugünün tarihi
+        # Yükleme tarihi
         yukleme_tarihi = datetime.now().strftime('%Y-%m-%d')
 
-        records = []
+        # 1. Önce tüm kayıtları hazırla
+        all_records = []
+        magaza_set = set()
+        donem_set = set()
+
         for _, row in df.iterrows():
             record = {}
             for excel_col, db_col in COLUMN_MAPPING.items():
@@ -265,7 +297,6 @@ def save_to_supabase(df):
                         val = float(val) if not np.isnan(val) else None
                     elif isinstance(val, str):
                         val = val.strip()
-                        # Türkçe ondalık formatındaki sayıları çevir (ör: "0,0" -> 0.0)
                         import re
                         if re.match(r'^-?\d+,\d+$', val):
                             try:
@@ -274,18 +305,88 @@ def save_to_supabase(df):
                                 pass
                     record[db_col] = val
 
-            # Yükleme tarihini ekle
             record['yukleme_tarihi'] = yukleme_tarihi
-            records.append(record)
+            all_records.append(record)
 
-        # Batch upsert
+            # Mağaza ve dönem setlerini topla
+            if record.get('magaza_kodu'):
+                magaza_set.add(str(record['magaza_kodu']))
+            if record.get('envanter_donemi'):
+                donem_set.add(str(record['envanter_donemi']))
+
+        # 2. Mevcut kayıtları çek (karşılaştırma için)
+        # Tüm kümülatif alanları çek
+        kum_fields = ','.join([kum for kum, _ in KUMULATIF_ALANLAR])
+        select_fields = f'magaza_kodu,malzeme_kodu,envanter_sayisi,{kum_fields}'
+
+        existing_records = {}
+        for donem in donem_set:
+            try:
+                result = supabase.table(TABLE_NAME).select(
+                    select_fields
+                ).eq('envanter_donemi', donem).in_('magaza_kodu', list(magaza_set)).execute()
+
+                if result.data:
+                    for r in result.data:
+                        key = (
+                            str(r.get('magaza_kodu', '')),
+                            str(r.get('malzeme_kodu', '')),
+                            str(donem),
+                            int(r.get('envanter_sayisi', 0))
+                        )
+                        existing_records[key] = r
+            except Exception as e:
+                st.warning(f"Mevcut kayıt çekme hatası: {str(e)[:50]}")
+
+        # 3. Kayıtları filtrele ve delta hesapla
+        records_to_insert = []
+        skipped = 0
+
+        for record in all_records:
+            magaza = str(record.get('magaza_kodu', ''))
+            malzeme = str(record.get('malzeme_kodu', ''))
+            donem = str(record.get('envanter_donemi', ''))
+            try:
+                envanter_sayisi = int(record.get('envanter_sayisi', 0))
+            except:
+                envanter_sayisi = 0
+
+            key = (magaza, malzeme, donem, envanter_sayisi)
+
+            # Zaten varsa atla
+            if key in existing_records:
+                skipped += 1
+                continue
+
+            # Önceki envanteri bul (aynı dönemde, daha küçük envanter_sayisi)
+            previous_record = None
+            for prev_sayisi in range(envanter_sayisi - 1, 0, -1):
+                prev_key = (magaza, malzeme, donem, prev_sayisi)
+                if prev_key in existing_records:
+                    previous_record = existing_records[prev_key]
+                    break
+
+            # TÜM kümülatif alanlar için delta hesapla
+            for kum_field, delta_field in KUMULATIF_ALANLAR:
+                current_kum = record.get(kum_field, 0) or 0
+                previous_kum = 0
+                if previous_record:
+                    previous_kum = previous_record.get(kum_field, 0) or 0
+                record[delta_field] = current_kum - previous_kum
+
+            records_to_insert.append(record)
+
+            # Bu kaydı da existing'e ekle (sonraki kayıtlar için)
+            existing_records[key] = {kum: record.get(kum, 0) for kum, _ in KUMULATIF_ALANLAR}
+
+        # 4. Yeni kayıtları ekle (insert, upsert değil)
         batch_size = 500
         inserted = 0
-        updated = 0
 
-        for i in range(0, len(records), batch_size):
-            batch = records[i:i+batch_size]
+        for i in range(0, len(records_to_insert), batch_size):
+            batch = records_to_insert[i:i+batch_size]
             try:
+                # Upsert kullan ama sadece yeni kayıtlar gidecek
                 result = supabase.table(TABLE_NAME).upsert(
                     batch,
                     on_conflict='magaza_kodu,malzeme_kodu,envanter_donemi,envanter_sayisi'
@@ -294,10 +395,10 @@ def save_to_supabase(df):
             except Exception as e:
                 st.warning(f"Batch {i//batch_size + 1} hatası: {str(e)[:100]}")
 
-        return inserted, updated, "OK"
+        return inserted, skipped, len(all_records), "OK"
 
     except Exception as e:
-        return 0, 0, f"Hata: {str(e)}"
+        return 0, 0, 0, f"Hata: {str(e)}"
 
 def get_mevcut_envanter_sayilari(magaza_kodlari, envanter_donemi):
     """
@@ -1444,7 +1545,7 @@ def main_app():
                         })
 
                     # ==================== ANA SEKMELER: RİSK TİPİ ====================
-                    risk_type_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık"])
+                    risk_type_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık", "🔢 Yüksek Sayım"])
 
                     # ==================== AÇIK ORANI SEKMESİ ====================
                     with risk_type_tabs[0]:
@@ -1573,6 +1674,101 @@ def main_app():
                                 if len(ic_mag_sorted) > 30: st.caption(f"... ve {len(ic_mag_sorted) - 30} mağaza daha")
                             else:
                                 st.success("🟢 İç hırsızlık şüphesi olan mağaza bulunamadı!")
+
+                    # ==================== YÜKSEK SAYIM SEKMESİ ====================
+                    with risk_type_tabs[2]:
+                        st.caption("Son envanterde 50+ sayım yapan mağazalar | Yüksek sayım = potansiyel manipülasyon")
+
+                        # Yüksek sayım yapan ürünleri bul (sayim_miktari >= 50)
+                        YUKSEK_SAYIM_ESIK = 50
+
+                        # Mevcut df'den yüksek sayımlı ürünleri filtrele
+                        yuksek_sayim_urunler = []
+                        for _, row in df.iterrows():
+                            sayim_mik = row.get('Sayım Miktarı', 0)
+                            if pd.notna(sayim_mik) and float(sayim_mik) >= YUKSEK_SAYIM_ESIK:
+                                yuksek_sayim_urunler.append({
+                                    'magaza_kodu': str(row.get('Mağaza Kodu', '')),
+                                    'magaza_adi': str(row.get('Mağaza Tanım', '')),
+                                    'sm': str(row.get('Satış Müdürü', '')),
+                                    'bs': str(row.get('Bölge Sorumlusu', '')),
+                                    'malzeme_kodu': str(row.get('Malzeme Kodu', '')),
+                                    'malzeme_adi': str(row.get('Malzeme Tanımı', ''))[:40],
+                                    'sayim_miktari': float(sayim_mik),
+                                    'envanter_sayisi': int(row.get('Envanter Sayisi', 0)) if pd.notna(row.get('Envanter Sayisi')) else 0,
+                                    'satis_fiyati': float(row.get('Satış Fiyatı', 0)) if pd.notna(row.get('Satış Fiyatı')) else 0
+                                })
+
+                        ys_sub_tabs = st.tabs(["👔 SM", "📋 BS", "🏪 Mağaza"])
+
+                        # ----- SM Yüksek Sayım -----
+                        with ys_sub_tabs[0]:
+                            if yuksek_sayim_urunler:
+                                # SM bazında grupla
+                                sm_yuksek = {}
+                                for u in yuksek_sayim_urunler:
+                                    sm = u['sm']
+                                    if sm not in sm_yuksek:
+                                        sm_yuksek[sm] = {'urunler': [], 'magazalar': set()}
+                                    sm_yuksek[sm]['urunler'].append(u)
+                                    sm_yuksek[sm]['magazalar'].add(u['magaza_kodu'])
+
+                                sm_sorted = sorted(sm_yuksek.items(), key=lambda x: len(x[1]['urunler']), reverse=True)
+                                st.error(f"🔢 {len(sm_sorted)} SM'de yüksek sayım tespit edildi")
+
+                                for sm_adi, data in sm_sorted:
+                                    with st.expander(f"🔢 **{sm_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['sayim_miktari'], reverse=True)[:20]:
+                                            st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
+                            else:
+                                st.success(f"🟢 {YUKSEK_SAYIM_ESIK}+ sayım yapan ürün bulunamadı!")
+
+                        # ----- BS Yüksek Sayım -----
+                        with ys_sub_tabs[1]:
+                            if yuksek_sayim_urunler:
+                                # BS bazında grupla
+                                bs_yuksek = {}
+                                for u in yuksek_sayim_urunler:
+                                    bs = u['bs']
+                                    if bs not in bs_yuksek:
+                                        bs_yuksek[bs] = {'urunler': [], 'magazalar': set()}
+                                    bs_yuksek[bs]['urunler'].append(u)
+                                    bs_yuksek[bs]['magazalar'].add(u['magaza_kodu'])
+
+                                bs_sorted = sorted(bs_yuksek.items(), key=lambda x: len(x[1]['urunler']), reverse=True)
+                                st.error(f"🔢 {len(bs_sorted)} BS'de yüksek sayım tespit edildi")
+
+                                for bs_adi, data in bs_sorted:
+                                    with st.expander(f"🔢 **{bs_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['sayim_miktari'], reverse=True)[:20]:
+                                            st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
+                            else:
+                                st.success(f"🟢 {YUKSEK_SAYIM_ESIK}+ sayım yapan ürün bulunamadı!")
+
+                        # ----- Mağaza Yüksek Sayım -----
+                        with ys_sub_tabs[2]:
+                            if yuksek_sayim_urunler:
+                                # Mağaza bazında grupla
+                                mag_yuksek = {}
+                                for u in yuksek_sayim_urunler:
+                                    mag = u['magaza_kodu']
+                                    if mag not in mag_yuksek:
+                                        mag_yuksek[mag] = {'adi': u['magaza_adi'], 'sm': u['sm'], 'bs': u['bs'], 'urunler': []}
+                                    mag_yuksek[mag]['urunler'].append(u)
+
+                                mag_sorted = sorted(mag_yuksek.items(), key=lambda x: len(x[1]['urunler']), reverse=True)
+                                st.error(f"🔢 {len(mag_sorted)} mağazada yüksek sayım tespit edildi")
+
+                                for mag_kodu, data in mag_sorted[:30]:
+                                    with st.expander(f"🔢 **{mag_kodu}** {data['adi'][:25]} | {len(data['urunler'])} ürün | SM: {data['sm']} | BS: {data['bs']}"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['sayim_miktari'], reverse=True)[:15]:
+                                            st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
+                                            st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
+                                if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
+                            else:
+                                st.success(f"🟢 {YUKSEK_SAYIM_ESIK}+ sayım yapan mağaza bulunamadı!")
 
                 else:
                     st.info("📥 Veri bulunamadı")
@@ -1730,10 +1926,15 @@ def main_app():
                         st.markdown("---")
                         file_key = f"saved_{uploaded_file.name}_{len(df)}"
                         if file_key not in st.session_state:
-                            basarili, _, mesaj = save_to_supabase(df)
-                            if mesaj == "OK" and basarili > 0:
+                            eklenen, atlanan, toplam, mesaj = save_to_supabase(df)
+                            if mesaj == "OK":
                                 st.session_state[file_key] = True
-                                st.success(f"💾 {basarili} kayıt veritabanına kaydedildi!")
+                                if eklenen > 0:
+                                    st.success(f"💾 {eklenen} yeni kayıt eklendi (delta hesaplandı)")
+                                if atlanan > 0:
+                                    st.info(f"⏭️ {atlanan} kayıt zaten mevcut (atlandı)")
+                                if eklenen == 0 and atlanan > 0:
+                                    st.warning("📋 Tüm kayıtlar zaten veritabanında mevcut.")
                             elif mesaj != "OK":
                                 st.error(f"❌ Kayıt hatası: {mesaj}")
                         else:
