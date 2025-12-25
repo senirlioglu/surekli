@@ -492,6 +492,7 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
     col_saat = 'Fiş Saati'
     col_miktar = 'Miktar'
     col_islem_no = 'İşlem Numarası'
+    col_kasa = 'Kasa numarası - Anahtar'
 
     # Sütunlar yoksa index ile dene
     cols = df_iptal.columns.tolist()
@@ -532,6 +533,7 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
         saat = row.get(col_saat, '')
         miktar = row.get(col_miktar, 0)
         islem_no = row.get(col_islem_no, '')
+        kasa_no = row.get(col_kasa, '')
 
         if malzeme not in result:
             result[malzeme] = []
@@ -540,7 +542,8 @@ def get_iptal_timestamps_for_magaza(magaza_kodu, malzeme_kodlari):
             'tarih': tarih,
             'saat': saat,
             'miktar': miktar,
-            'islem_no': islem_no
+            'islem_no': islem_no,
+            'kasa_no': kasa_no
         })
 
     return result
@@ -601,15 +604,11 @@ def get_kamera_bilgisi(malzeme_kodu, iptal_data, kamera_limit_gun=15, yukleme_ta
         saat = str(iptal.get('saat', ''))[:8]
         islem_no = str(iptal.get('islem_no', ''))
 
-        # Kasa numarası (işlem no'nun 4-5. karakteri)
-        kasa_no = ""
-        if len(islem_no) >= 6:
-            try:
-                kasa_no = f"Kasa:{int(islem_no[4:6])}"
-            except:
-                kasa_no = ""
+        # Kasa numarası doğrudan Sheet'ten
+        kasa_no = iptal.get('kasa_no', '')
+        kasa_str = f"Kasa:{kasa_no}" if kasa_no else ""
 
-        detaylar.append(f"{tarih} {saat} {kasa_no}".strip())
+        detaylar.append(f"{tarih} {saat} {kasa_str}".strip())
 
     return {
         'bulundu': True,
