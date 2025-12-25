@@ -587,7 +587,7 @@ def get_envanter_serisi(magaza_kodu, malzeme_kodu):
 
     try:
         result = supabase.table(TABLE_NAME).select(
-            'envanter_sayisi,sayim_miktari,fark_tutari,envanter_donemi'
+            'envanter_sayisi,sayim_miktari,fark_tutari,fire_tutari,envanter_donemi'
         ).eq('magaza_kodu', magaza_kodu).eq('malzeme_kodu', malzeme_kodu).order(
             'envanter_sayisi', desc=False
         ).execute()
@@ -599,22 +599,28 @@ def get_envanter_serisi(magaza_kodu, malzeme_kodu):
         seri = []
         onceki_kum = 0
         onceki_fark = 0
+        onceki_fire = 0
         for kayit in result.data:
             env_sayisi = kayit.get('envanter_sayisi', 0) or 0
             kumulatif = float(kayit.get('sayim_miktari', 0) or 0)
             fark_kum = float(kayit.get('fark_tutari', 0) or 0)
+            fire_kum = float(kayit.get('fire_tutari', 0) or 0)
             delta = kumulatif - onceki_kum
             fark_delta = fark_kum - onceki_fark
+            fire_delta = fire_kum - onceki_fire
             seri.append({
                 'envanter': env_sayisi,
                 'delta': delta,
                 'kumulatif': kumulatif,
                 'fark_tutari': fark_delta,
                 'fark_kumulatif': fark_kum,
+                'fire_tutari': fire_delta,
+                'fire_kumulatif': fire_kum,
                 'donem': kayit.get('envanter_donemi', '')
             })
             onceki_kum = kumulatif
             onceki_fark = fark_kum
+            onceki_fire = fire_kum
 
         return seri
     except Exception as e:
@@ -1587,7 +1593,7 @@ def main_app():
                         })
 
                     # ==================== ANA SEKMELER: RİSK TİPİ ====================
-                    risk_type_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık", "🔢 Yüksek Sayım"])
+                    risk_type_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık", "🔢 Yüksek Sayım", "📉 Kronik Açık", "🔥 Kronik Fire"])
 
                     # ==================== AÇIK ORANI SEKMESİ ====================
                     with risk_type_tabs[0]:
@@ -1856,6 +1862,232 @@ def main_app():
                                 if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
                             else:
                                 st.success(f"🟢 {YUKSEK_SAYIM_ESIK}+ sayım yapan mağaza bulunamadı!")
+
+                    # ==================== KRONİK AÇIK SEKMESİ ====================
+                    with risk_type_tabs[3]:
+                        st.caption("Kural: Ardışık 2 envanter sayımında fark_tutari < -500 TL | Seri varsa analiz yapılır")
+                        KRONIK_ESIK = -500  # TL
+
+                        # Kronik açık ürünleri bul
+                        kronik_acik_urunler = []
+                        gorulmus_kronik = set()
+
+                        for _, row in gm_df.iterrows():
+                            mag_urun_key = f"{row.get('magaza_kodu', '')}_{row.get('malzeme_kodu', '')}"
+                            if mag_urun_key in gorulmus_kronik:
+                                continue
+
+                            seri = get_envanter_serisi(str(row.get('magaza_kodu', '')), str(row.get('malzeme_kodu', '')))
+                            if seri and len(seri) >= 2:
+                                # Ardışık sayımlarda kronik açık kontrolü
+                                for i in range(1, len(seri)):
+                                    onceki = seri[i-1]
+                                    sonraki = seri[i]
+                                    # Her ikisinde de -500 TL'den kötü açık varsa
+                                    if onceki['fark_tutari'] < KRONIK_ESIK and sonraki['fark_tutari'] < KRONIK_ESIK:
+                                        gorulmus_kronik.add(mag_urun_key)
+                                        toplam_acik = onceki['fark_tutari'] + sonraki['fark_tutari']
+                                        kronik_acik_urunler.append({
+                                            'magaza_kodu': str(row.get('magaza_kodu', '')),
+                                            'magaza_adi': str(row.get('magaza_tanim', '')),
+                                            'sm': str(row.get('satis_muduru', '')),
+                                            'bs': str(row.get('bolge_sorumlusu', '')),
+                                            'malzeme_kodu': str(row.get('malzeme_kodu', '')),
+                                            'malzeme_adi': str(row.get('malzeme_tanimi', ''))[:40] if row.get('malzeme_tanimi') else '',
+                                            'onceki_fark': onceki['fark_tutari'],
+                                            'sonraki_fark': sonraki['fark_tutari'],
+                                            'toplam_acik': toplam_acik,
+                                            'onceki_env': onceki['envanter'],
+                                            'sonraki_env': sonraki['envanter']
+                                        })
+                                        break  # Bu ürün için bir tane bulduk
+
+                        kronik_sub_tabs = st.tabs(["👔 SM", "📋 BS", "🏪 Mağaza"])
+
+                        # ----- SM Kronik Açık -----
+                        with kronik_sub_tabs[0]:
+                            if kronik_acik_urunler:
+                                sm_kronik = {}
+                                for u in kronik_acik_urunler:
+                                    sm = u['sm']
+                                    if sm not in sm_kronik:
+                                        sm_kronik[sm] = {'urunler': [], 'magazalar': set(), 'toplam': 0}
+                                    sm_kronik[sm]['urunler'].append(u)
+                                    sm_kronik[sm]['magazalar'].add(u['magaza_kodu'])
+                                    sm_kronik[sm]['toplam'] += u['toplam_acik']
+
+                                sm_sorted = sorted(sm_kronik.items(), key=lambda x: x[1]['toplam'])
+                                st.error(f"📉 {len(sm_sorted)} SM'de kronik açık tespit edildi")
+
+                                for sm_adi, data in sm_sorted:
+                                    renk = "🔴" if data['toplam'] < -5000 else "🟠" if data['toplam'] < -2000 else "🟡"
+                                    with st.expander(f"{renk} **{sm_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza | Toplam: ₺{data['toplam']:,.0f}"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['toplam_acik'])[:20]:
+                                            st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.markdown(f"  📉 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_fark']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_fark']:,.0f}**] | Toplam: :red[**₺{urun['toplam_acik']:,.0f}**]")
+                            else:
+                                st.success("🟢 Kronik açık bulunamadı!")
+
+                        # ----- BS Kronik Açık -----
+                        with kronik_sub_tabs[1]:
+                            if kronik_acik_urunler:
+                                bs_kronik = {}
+                                for u in kronik_acik_urunler:
+                                    bs = u['bs']
+                                    if bs not in bs_kronik:
+                                        bs_kronik[bs] = {'urunler': [], 'magazalar': set(), 'toplam': 0}
+                                    bs_kronik[bs]['urunler'].append(u)
+                                    bs_kronik[bs]['magazalar'].add(u['magaza_kodu'])
+                                    bs_kronik[bs]['toplam'] += u['toplam_acik']
+
+                                bs_sorted = sorted(bs_kronik.items(), key=lambda x: x[1]['toplam'])
+                                st.error(f"📉 {len(bs_sorted)} BS'de kronik açık tespit edildi")
+
+                                for bs_adi, data in bs_sorted:
+                                    renk = "🔴" if data['toplam'] < -5000 else "🟠" if data['toplam'] < -2000 else "🟡"
+                                    with st.expander(f"{renk} **{bs_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza | Toplam: ₺{data['toplam']:,.0f}"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['toplam_acik'])[:20]:
+                                            st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.markdown(f"  📉 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_fark']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_fark']:,.0f}**] | Toplam: :red[**₺{urun['toplam_acik']:,.0f}**]")
+                            else:
+                                st.success("🟢 Kronik açık bulunamadı!")
+
+                        # ----- Mağaza Kronik Açık -----
+                        with kronik_sub_tabs[2]:
+                            if kronik_acik_urunler:
+                                mag_kronik = {}
+                                for u in kronik_acik_urunler:
+                                    mag = u['magaza_kodu']
+                                    if mag not in mag_kronik:
+                                        mag_kronik[mag] = {'adi': u['magaza_adi'], 'sm': u['sm'], 'bs': u['bs'], 'urunler': [], 'toplam': 0}
+                                    mag_kronik[mag]['urunler'].append(u)
+                                    mag_kronik[mag]['toplam'] += u['toplam_acik']
+
+                                mag_sorted = sorted(mag_kronik.items(), key=lambda x: x[1]['toplam'])
+                                st.error(f"📉 {len(mag_sorted)} mağazada kronik açık tespit edildi")
+
+                                for mag_kodu, data in mag_sorted[:30]:
+                                    renk = "🔴" if data['toplam'] < -3000 else "🟠" if data['toplam'] < -1000 else "🟡"
+                                    with st.expander(f"{renk} **{mag_kodu}** {data['adi'][:25]} | {len(data['urunler'])} ürün | Toplam: ₺{data['toplam']:,.0f}"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['toplam_acik'])[:15]:
+                                            st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
+                                            st.markdown(f"  📉 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_fark']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_fark']:,.0f}**] | Toplam: :red[**₺{urun['toplam_acik']:,.0f}**]")
+                                if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
+                            else:
+                                st.success("🟢 Kronik açık bulunamadı!")
+
+                    # ==================== KRONİK FİRE SEKMESİ ====================
+                    with risk_type_tabs[4]:
+                        st.caption("Kural: Ardışık 2 envanter sayımında fire_tutari < -500 TL | Seri varsa analiz yapılır")
+                        KRONIK_FIRE_ESIK = -500  # TL
+
+                        # Kronik fire ürünleri bul
+                        kronik_fire_urunler = []
+                        gorulmus_fire = set()
+
+                        for _, row in gm_df.iterrows():
+                            mag_urun_key = f"{row.get('magaza_kodu', '')}_{row.get('malzeme_kodu', '')}"
+                            if mag_urun_key in gorulmus_fire:
+                                continue
+
+                            seri = get_envanter_serisi(str(row.get('magaza_kodu', '')), str(row.get('malzeme_kodu', '')))
+                            if seri and len(seri) >= 2:
+                                # Ardışık sayımlarda kronik fire kontrolü
+                                for i in range(1, len(seri)):
+                                    onceki = seri[i-1]
+                                    sonraki = seri[i]
+                                    # Her ikisinde de -500 TL'den kötü fire varsa
+                                    if onceki.get('fire_tutari', 0) < KRONIK_FIRE_ESIK and sonraki.get('fire_tutari', 0) < KRONIK_FIRE_ESIK:
+                                        gorulmus_fire.add(mag_urun_key)
+                                        toplam_fire = onceki.get('fire_tutari', 0) + sonraki.get('fire_tutari', 0)
+                                        kronik_fire_urunler.append({
+                                            'magaza_kodu': str(row.get('magaza_kodu', '')),
+                                            'magaza_adi': str(row.get('magaza_tanim', '')),
+                                            'sm': str(row.get('satis_muduru', '')),
+                                            'bs': str(row.get('bolge_sorumlusu', '')),
+                                            'malzeme_kodu': str(row.get('malzeme_kodu', '')),
+                                            'malzeme_adi': str(row.get('malzeme_tanimi', ''))[:40] if row.get('malzeme_tanimi') else '',
+                                            'onceki_fire': onceki.get('fire_tutari', 0),
+                                            'sonraki_fire': sonraki.get('fire_tutari', 0),
+                                            'toplam_fire': toplam_fire,
+                                            'onceki_env': onceki['envanter'],
+                                            'sonraki_env': sonraki['envanter']
+                                        })
+                                        break
+
+                        fire_sub_tabs = st.tabs(["👔 SM", "📋 BS", "🏪 Mağaza"])
+
+                        # ----- SM Kronik Fire -----
+                        with fire_sub_tabs[0]:
+                            if kronik_fire_urunler:
+                                sm_fire = {}
+                                for u in kronik_fire_urunler:
+                                    sm = u['sm']
+                                    if sm not in sm_fire:
+                                        sm_fire[sm] = {'urunler': [], 'magazalar': set(), 'toplam': 0}
+                                    sm_fire[sm]['urunler'].append(u)
+                                    sm_fire[sm]['magazalar'].add(u['magaza_kodu'])
+                                    sm_fire[sm]['toplam'] += u['toplam_fire']
+
+                                sm_sorted = sorted(sm_fire.items(), key=lambda x: x[1]['toplam'])
+                                st.error(f"🔥 {len(sm_sorted)} SM'de kronik fire tespit edildi")
+
+                                for sm_adi, data in sm_sorted:
+                                    renk = "🔴" if data['toplam'] < -5000 else "🟠" if data['toplam'] < -2000 else "🟡"
+                                    with st.expander(f"{renk} **{sm_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza | Toplam: ₺{data['toplam']:,.0f}"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['toplam_fire'])[:20]:
+                                            st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.markdown(f"  🔥 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_fire']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_fire']:,.0f}**] | Toplam: :red[**₺{urun['toplam_fire']:,.0f}**]")
+                            else:
+                                st.success("🟢 Kronik fire bulunamadı!")
+
+                        # ----- BS Kronik Fire -----
+                        with fire_sub_tabs[1]:
+                            if kronik_fire_urunler:
+                                bs_fire = {}
+                                for u in kronik_fire_urunler:
+                                    bs = u['bs']
+                                    if bs not in bs_fire:
+                                        bs_fire[bs] = {'urunler': [], 'magazalar': set(), 'toplam': 0}
+                                    bs_fire[bs]['urunler'].append(u)
+                                    bs_fire[bs]['magazalar'].add(u['magaza_kodu'])
+                                    bs_fire[bs]['toplam'] += u['toplam_fire']
+
+                                bs_sorted = sorted(bs_fire.items(), key=lambda x: x[1]['toplam'])
+                                st.error(f"🔥 {len(bs_sorted)} BS'de kronik fire tespit edildi")
+
+                                for bs_adi, data in bs_sorted:
+                                    renk = "🔴" if data['toplam'] < -5000 else "🟠" if data['toplam'] < -2000 else "🟡"
+                                    with st.expander(f"{renk} **{bs_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza | Toplam: ₺{data['toplam']:,.0f}"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['toplam_fire'])[:20]:
+                                            st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.markdown(f"  🔥 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_fire']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_fire']:,.0f}**] | Toplam: :red[**₺{urun['toplam_fire']:,.0f}**]")
+                            else:
+                                st.success("🟢 Kronik fire bulunamadı!")
+
+                        # ----- Mağaza Kronik Fire -----
+                        with fire_sub_tabs[2]:
+                            if kronik_fire_urunler:
+                                mag_fire = {}
+                                for u in kronik_fire_urunler:
+                                    mag = u['magaza_kodu']
+                                    if mag not in mag_fire:
+                                        mag_fire[mag] = {'adi': u['magaza_adi'], 'sm': u['sm'], 'bs': u['bs'], 'urunler': [], 'toplam': 0}
+                                    mag_fire[mag]['urunler'].append(u)
+                                    mag_fire[mag]['toplam'] += u['toplam_fire']
+
+                                mag_sorted = sorted(mag_fire.items(), key=lambda x: x[1]['toplam'])
+                                st.error(f"🔥 {len(mag_sorted)} mağazada kronik fire tespit edildi")
+
+                                for mag_kodu, data in mag_sorted[:30]:
+                                    renk = "🔴" if data['toplam'] < -3000 else "🟠" if data['toplam'] < -1000 else "🟡"
+                                    with st.expander(f"{renk} **{mag_kodu}** {data['adi'][:25]} | {len(data['urunler'])} ürün | Toplam: ₺{data['toplam']:,.0f}"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['toplam_fire'])[:15]:
+                                            st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
+                                            st.markdown(f"  🔥 {urun['onceki_env']}.Env: :red[**₺{urun['onceki_fire']:,.0f}**] → {urun['sonraki_env']}.Env: :red[**₺{urun['sonraki_fire']:,.0f}**] | Toplam: :red[**₺{urun['toplam_fire']:,.0f}**]")
+                                if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
+                            else:
+                                st.success("🟢 Kronik fire bulunamadı!")
 
                 else:
                     st.info("📥 Veri bulunamadı")
