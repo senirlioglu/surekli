@@ -1,0 +1,830 @@
+{
+  "7946": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL YAZGAN"
+  },
+  "B259": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MEHMET KÜÇÜKOĞLU"
+  },
+  "5490": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MEHMET KÜÇÜKOĞLU"
+  },
+  "4667": {
+    "sm": "ALİ AKÇAY",
+    "bs": "İBRAHİM DURBALİ"
+  },
+  "1339": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL YAZGAN"
+  },
+  "D014": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL YAZGAN"
+  },
+  "H023": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL YAZGAN"
+  },
+  "8406": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MEHMET KÜÇÜKOĞLU"
+  },
+  "C509": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL UĞUR KAYA"
+  },
+  "461": {
+    "sm": "GİZEM TOSUN",
+    "bs": "DOĞAN İSTEMİHAN"
+  },
+  "F488": {
+    "sm": "GİZEM TOSUN",
+    "bs": "DOĞAN İSTEMİHAN"
+  },
+  "C545": {
+    "sm": "GİZEM TOSUN",
+    "bs": "FATİH SERT"
+  },
+  "C156": {
+    "sm": "GİZEM TOSUN",
+    "bs": "DOĞAN İSTEMİHAN"
+  },
+  "396": {
+    "sm": "GİZEM TOSUN",
+    "bs": "FATİH SERT"
+  },
+  "B056": {
+    "sm": "GİZEM TOSUN",
+    "bs": "DOĞAN İSTEMİHAN"
+  },
+  "4666": {
+    "sm": "GİZEM TOSUN",
+    "bs": "FATİH SERT"
+  },
+  "3812": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMET YILMAZ"
+  },
+  "C029": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMET YILMAZ"
+  },
+  "1259": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMET YILMAZ"
+  },
+  "3819": {
+    "sm": "GİZEM TOSUN",
+    "bs": "FATİH SERT"
+  },
+  "B058": {
+    "sm": "GİZEM TOSUN",
+    "bs": "FATİH SERT"
+  },
+  "C132": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMET YILMAZ"
+  },
+  "C371": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMET YILMAZ"
+  },
+  "D214": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL YAZGAN"
+  },
+  "3305": {
+    "sm": "ALİ AKÇAY",
+    "bs": "NESLİHAN ÖZYURT"
+  },
+  "E317": {
+    "sm": "ALİ AKÇAY",
+    "bs": "NESLİHAN ÖZYURT"
+  },
+  "4377": {
+    "sm": "ALİ AKÇAY",
+    "bs": "NESLİHAN ÖZYURT"
+  },
+  "E319": {
+    "sm": "ALİ AKÇAY",
+    "bs": "NESLİHAN ÖZYURT"
+  },
+  "F813": {
+    "sm": "ALİ AKÇAY",
+    "bs": "AYŞE DAL"
+  },
+  "C401": {
+    "sm": "ALİ AKÇAY",
+    "bs": "AYŞE DAL"
+  },
+  "2022": {
+    "sm": "GİZEM TOSUN",
+    "bs": "FATİH SERT"
+  },
+  "E180": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMET YILMAZ"
+  },
+  "B043": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL UĞUR KAYA"
+  },
+  "B368": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL UĞUR KAYA"
+  },
+  "E664": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL UĞUR KAYA"
+  },
+  "7164": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL UĞUR KAYA"
+  },
+  "2054": {
+    "sm": "GİZEM TOSUN",
+    "bs": "DOĞAN İSTEMİHAN"
+  },
+  "F296": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL UĞUR KAYA"
+  },
+  "8971": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL UĞUR KAYA"
+  },
+  "F516": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL YAZGAN"
+  },
+  "1142": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL UĞUR KAYA"
+  },
+  "G400": {
+    "sm": "ALİ AKÇAY",
+    "bs": "FİKRET HOCA"
+  },
+  "561": {
+    "sm": "ALİ AKÇAY",
+    "bs": "FİKRET HOCA"
+  },
+  "B750": {
+    "sm": "ALİ AKÇAY",
+    "bs": "AYŞE DAL"
+  },
+  "1408": {
+    "sm": "ALİ AKÇAY",
+    "bs": "AYŞE DAL"
+  },
+  "C241": {
+    "sm": "ALİ AKÇAY",
+    "bs": "FİKRET HOCA"
+  },
+  "8404": {
+    "sm": "ALİ AKÇAY",
+    "bs": "FİKRET HOCA"
+  },
+  "7832": {
+    "sm": "ALİ AKÇAY",
+    "bs": "FİKRET HOCA"
+  },
+  "434": {
+    "sm": "ALİ AKÇAY",
+    "bs": "NESLİHAN ÖZYURT"
+  },
+  "B931": {
+    "sm": "ALİ AKÇAY",
+    "bs": "AYŞE DAL"
+  },
+  "1071": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÜMİT KIRBAŞ"
+  },
+  "D589": {
+    "sm": "ALİ AKÇAY",
+    "bs": "FİKRET HOCA"
+  },
+  "9065": {
+    "sm": "ALİ AKÇAY",
+    "bs": "AYŞE DAL"
+  },
+  "4052": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÜMİT KIRBAŞ"
+  },
+  "B041": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÜMİT KIRBAŞ"
+  },
+  "4282": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MUHAMMED BAŞARAN"
+  },
+  "B543": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MUHAMMED BAŞARAN"
+  },
+  "D074": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MUHAMMED BAŞARAN"
+  },
+  "2326": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MUHAMMED BAŞARAN"
+  },
+  "9575": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MUHAMMED BAŞARAN"
+  },
+  "1270": {
+    "sm": "ALİ AKÇAY",
+    "bs": "İBRAHİM DURBALİ"
+  },
+  "D471": {
+    "sm": "ALİ AKÇAY",
+    "bs": "İBRAHİM DURBALİ"
+  },
+  "2071": {
+    "sm": "ALİ AKÇAY",
+    "bs": "İBRAHİM DURBALİ"
+  },
+  "2454": {
+    "sm": "ALİ AKÇAY",
+    "bs": "İBRAHİM DURBALİ"
+  },
+  "B465": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÖZKAN DEMİR"
+  },
+  "4892": {
+    "sm": "ALİ AKÇAY",
+    "bs": "İBRAHİM DURBALİ"
+  },
+  "B072": {
+    "sm": "ALİ AKÇAY",
+    "bs": "İBRAHİM DURBALİ"
+  },
+  "1441": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÜMİT KIRBAŞ"
+  },
+  "7915": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÜMİT KIRBAŞ"
+  },
+  "4299": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÜMİT KIRBAŞ"
+  },
+  "8243": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÖZKAN DEMİR"
+  },
+  "C490": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÖZKAN DEMİR"
+  },
+  "B548": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÖZKAN DEMİR"
+  },
+  "C558": {
+    "sm": "ALİ AKÇAY",
+    "bs": "AYŞE DAL"
+  },
+  "E861": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÖZKAN DEMİR"
+  },
+  "8931": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÖZKAN DEMİR"
+  },
+  "1830": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÖZKAN DEMİR"
+  },
+  "E046": {
+    "sm": "ALİ AKÇAY",
+    "bs": "NESLİHAN ÖZYURT"
+  },
+  "B818": {
+    "sm": "ALİ AKÇAY",
+    "bs": "NESLİHAN ÖZYURT"
+  },
+  "D336": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ÜMİT KAAN ŞAHİN"
+  },
+  "E138": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ÜMİT KAAN ŞAHİN"
+  },
+  "B130": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ÜMİT KAAN ŞAHİN"
+  },
+  "9027": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ÜMİT KAAN ŞAHİN"
+  },
+  "7606": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ÜMİT KAAN ŞAHİN"
+  },
+  "C528": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ERDAL ARSLAN"
+  },
+  "C547": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ERDAL ARSLAN"
+  },
+  "9541": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ERDAL ARSLAN"
+  },
+  "E351": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ERDAL ARSLAN"
+  },
+  "F038": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ERDAL ARSLAN"
+  },
+  "D657": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ÜMİT KAAN ŞAHİN"
+  },
+  "C820": {
+    "sm": "ALİ AKÇAY",
+    "bs": "EMRAH AKINCI"
+  },
+  "C760": {
+    "sm": "VELİ GÖK",
+    "bs": "ÇAĞRI YALÇIN"
+  },
+  "648": {
+    "sm": "VELİ GÖK",
+    "bs": "ÇAĞRI YALÇIN"
+  },
+  "B397": {
+    "sm": "VELİ GÖK",
+    "bs": "ÇAĞRI YALÇIN"
+  },
+  "C553": {
+    "sm": "VELİ GÖK",
+    "bs": "ÇAĞRI YALÇIN"
+  },
+  "1715": {
+    "sm": "VELİ GÖK",
+    "bs": "ÇAĞRI YALÇIN"
+  },
+  "9423": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞÇE KOCABAŞ"
+  },
+  "C656": {
+    "sm": "ALİ AKÇAY",
+    "bs": "EMRAH AKINCI"
+  },
+  "B218": {
+    "sm": "ALİ AKÇAY",
+    "bs": "EMRAH AKINCI"
+  },
+  "D587": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ÜMİT KAAN ŞAHİN"
+  },
+  "B638": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ERDAL ARSLAN"
+  },
+  "F344": {
+    "sm": "ALİ AKÇAY",
+    "bs": "EMRAH AKINCI"
+  },
+  "B691": {
+    "sm": "ALİ AKÇAY",
+    "bs": "EMRAH AKINCI"
+  },
+  "1484": {
+    "sm": "VELİ GÖK",
+    "bs": "ÇAĞRI YALÇIN"
+  },
+  "1610": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞÇE KOCABAŞ"
+  },
+  "D483": {
+    "sm": "VELİ GÖK",
+    "bs": "ABDULLAH BAY"
+  },
+  "1125": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞÇE KOCABAŞ"
+  },
+  "E607": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞÇE KOCABAŞ"
+  },
+  "D549": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞÇE KOCABAŞ"
+  },
+  "9171": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞÇE KOCABAŞ"
+  },
+  "E227": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞÇE KOCABAŞ"
+  },
+  "D337": {
+    "sm": "VELİ GÖK",
+    "bs": "ABDULLAH BAY"
+  },
+  "B949": {
+    "sm": "VELİ GÖK",
+    "bs": "ABDULLAH BAY"
+  },
+  "F089": {
+    "sm": "VELİ GÖK",
+    "bs": "ABDULLAH BAY"
+  },
+  "376": {
+    "sm": "VELİ GÖK",
+    "bs": "ABDULLAH BAY"
+  },
+  "H174": {
+    "sm": "VELİ GÖK",
+    "bs": "ABDULLAH BAY"
+  },
+  "9088": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "SİNEM ÖZKAYA"
+  },
+  "G743": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "SİNEM ÖZKAYA"
+  },
+  "C668": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "SİNEM ÖZKAYA"
+  },
+  "9626": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "SİNEM ÖZKAYA"
+  },
+  "D627": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "D706": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "SİNEM ÖZKAYA"
+  },
+  "8687": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "SİNEM ÖZKAYA"
+  },
+  "8047": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "C007": {
+    "sm": "VELİ GÖK",
+    "bs": "KADİR ÇETİN"
+  },
+  "C346": {
+    "sm": "VELİ GÖK",
+    "bs": "SELİM GÜNDÜZ"
+  },
+  "651": {
+    "sm": "VELİ GÖK",
+    "bs": "KADİR ÇETİN"
+  },
+  "6346": {
+    "sm": "VELİ GÖK",
+    "bs": "KADİR ÇETİN"
+  },
+  "F408": {
+    "sm": "VELİ GÖK",
+    "bs": "KADİR ÇETİN"
+  },
+  "132": {
+    "sm": "VELİ GÖK",
+    "bs": "KADİR ÇETİN"
+  },
+  "5361": {
+    "sm": "VELİ GÖK",
+    "bs": "KERİM YÜREKLİ"
+  },
+  "9395": {
+    "sm": "VELİ GÖK",
+    "bs": "KERİM YÜREKLİ"
+  },
+  "D466": {
+    "sm": "VELİ GÖK",
+    "bs": "KERİM YÜREKLİ"
+  },
+  "D397": {
+    "sm": "VELİ GÖK",
+    "bs": "KERİM YÜREKLİ"
+  },
+  "5587": {
+    "sm": "VELİ GÖK",
+    "bs": "KERİM YÜREKLİ"
+  },
+  "6667": {
+    "sm": "VELİ GÖK",
+    "bs": "SELİM GÜNDÜZ"
+  },
+  "F118": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "D912": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "C947": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "8568": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "G874": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "H035": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞBA ALDI"
+  },
+  "F973": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞBA ALDI"
+  },
+  "8574": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞBA ALDI"
+  },
+  "D705": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "E965": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞBA ALDI"
+  },
+  "E257": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞBA ALDI"
+  },
+  "G669": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "8878": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "7707": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "5945": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "H203": {
+    "sm": "GİZEM TOSUN",
+    "bs": "DOĞAN İSTEMİHAN"
+  },
+  "H283": {
+    "sm": "ALİ AKÇAY",
+    "bs": "AYŞE DAL"
+  },
+  "H351": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MUHAMMED BAŞARAN"
+  },
+  "H388": {
+    "sm": "VELİ GÖK",
+    "bs": "KADİR ÇETİN"
+  },
+  "H411": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "H399": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "H424": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "H519": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "H505": {
+    "sm": "ALİ AKÇAY",
+    "bs": "FİKRET HOCA"
+  },
+  "H552": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞBA ALDI"
+  },
+  "H641": {
+    "sm": "VELİ GÖK",
+    "bs": "SELİM GÜNDÜZ"
+  },
+  "H645": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "H674": {
+    "sm": "VELİ GÖK",
+    "bs": "SELİM GÜNDÜZ"
+  },
+  "H748": {
+    "sm": "VELİ GÖK",
+    "bs": "SELİM GÜNDÜZ"
+  },
+  "H946": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞBA ALDI"
+  },
+  "H950": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "I023": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL YAZGAN"
+  },
+  "I066": {
+    "sm": "ALİ AKÇAY",
+    "bs": "İBRAHİM DURBALİ"
+  },
+  "I174": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MEHMET KÜÇÜKOĞLU"
+  },
+  "I251": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÖZKAN DEMİR"
+  },
+  "I252": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "SİNEM ÖZKAYA"
+  },
+  "I431": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMET YILMAZ"
+  },
+  "I566": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "I568": {
+    "sm": "VELİ GÖK",
+    "bs": "ÇAĞRI YALÇIN"
+  },
+  "I578": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "I628": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "I702": {
+    "sm": "VELİ GÖK",
+    "bs": "KADİR ÇETİN"
+  },
+  "I693": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "SİNEM ÖZKAYA"
+  },
+  "I725": {
+    "sm": "VELİ GÖK",
+    "bs": "SELİM GÜNDÜZ"
+  },
+  "I684": {
+    "sm": "ALİ AKÇAY",
+    "bs": "EMRAH AKINCI"
+  },
+  "I654": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÜMİT KIRBAŞ"
+  },
+  "I862": {
+    "sm": "VELİ GÖK",
+    "bs": "SELİM GÜNDÜZ"
+  },
+  "I824": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ERDAL ARSLAN"
+  },
+  "I879": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMAİL YAZGAN"
+  },
+  "D550": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "ÜMİT KAAN ŞAHİN"
+  },
+  "I984": {
+    "sm": "VELİ GÖK",
+    "bs": "ABDULLAH BAY"
+  },
+  "I996": {
+    "sm": "VELİ GÖK",
+    "bs": "KERİM YÜREKLİ"
+  },
+  "J187": {
+    "sm": "VELİ GÖK",
+    "bs": "KERİM YÜREKLİ"
+  },
+  "J218": {
+    "sm": "VELİ GÖK",
+    "bs": "SELİM GÜNDÜZ"
+  },
+  "J270": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  },
+  "J365": {
+    "sm": "ALİ AKÇAY",
+    "bs": "ÜMİT KIRBAŞ"
+  },
+  "J372": {
+    "sm": "GİZEM TOSUN",
+    "bs": "DOĞAN İSTEMİHAN"
+  },
+  "J366": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MEHMET KÜÇÜKOĞLU"
+  },
+  "J433": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MUHAMMED BAŞARAN"
+  },
+  "J506": {
+    "sm": "ALİ AKÇAY",
+    "bs": "FİKRET HOCA"
+  },
+  "J732": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "RAMAZAN ÇATALTAŞ"
+  },
+  "J751": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞBA ALDI"
+  },
+  "J846": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MEHMET KÜÇÜKOĞLU"
+  },
+  "J857": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MEHMET KÜÇÜKOĞLU"
+  },
+  "J880": {
+    "sm": "VELİ GÖK",
+    "bs": "TUĞÇE KOCABAŞ"
+  },
+  "K004": {
+    "sm": "GİZEM TOSUN",
+    "bs": "İSMET YILMAZ"
+  },
+  "K121": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MUHAMMED BAŞARAN"
+  },
+  "K143": {
+    "sm": "GİZEM TOSUN",
+    "bs": "FATİH SERT"
+  },
+  "K179": {
+    "sm": "ALİ AKÇAY",
+    "bs": "NESLİHAN ÖZYURT"
+  },
+  "K277": {
+    "sm": "GİZEM TOSUN",
+    "bs": "MEHMET KÜÇÜKOĞLU"
+  },
+  "K237": {
+    "sm": "ŞADAN YURDAKUL",
+    "bs": "YUNUS BAYSAL"
+  }
+}

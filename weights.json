@@ -1,0 +1,12 @@
+{
+    "risk_weights": {
+        "toplam_oran": {"high": {"threshold": 2.0, "points": 40}, "medium": {"threshold": 1.5, "points": 25}, "low": {"threshold": 1.0, "points": 15}},
+        "ic_hirsizlik": {"high": {"threshold": 50, "points": 30}, "medium": {"threshold": 30, "points": 20}, "low": {"threshold": 15, "points": 10}},
+        "sigara": {"high": {"threshold": 5, "points": 35}, "low": {"threshold": 0, "points": 20}},
+        "kronik": {"high": {"threshold": 100, "points": 15}, "low": {"threshold": 50, "points": 10}},
+        "fire_manipulasyon": {"high": {"threshold": 10, "points": 20}, "low": {"threshold": 5, "points": 10}},
+        "kasa_10tl": {"high": {"threshold": 20, "points": 15}, "low": {"threshold": 10, "points": 10}}
+    },
+    "risk_levels": {"kritik": 60, "riskli": 40, "dikkat": 20},
+    "max_risk_score": 100
+}

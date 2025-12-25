@@ -1,0 +1,464 @@
+{
+  "20000835": {
+    "tanim": "ANANAS",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 119.5
+  },
+  "20000812": {
+    "tanim": "ARMUT DEVECİ",
+    "tip": "LABCD",
+    "nitelik": "Sezonluk",
+    "fiyat": 99.5
+  },
+  "20000813": {
+    "tanim": "ARMUT SANTA MARİA",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 99.5
+  },
+  "20000853": {
+    "tanim": "AVOKADO",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 49.5
+  },
+  "20001343": {
+    "tanim": "AVOKADO YEMEYE HAZIR PAKET",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 99.5
+  },
+  "20000815": {
+    "tanim": "AYVA",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 129.5
+  },
+  "20001154": {
+    "tanim": "BAL KABAĞI",
+    "tip": "LA",
+    "nitelik": "Delist",
+    "fiyat": 37.9
+  },
+  "20000023": {
+    "tanim": "BİBER ÇARLİSTON PAKET (300G)",
+    "tip": "LABCD",
+    "nitelik": "Sezonluk",
+    "fiyat": 24.9
+  },
+  "20000025": {
+    "tanim": "BİBER DOLMA PAKET (300G)",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 27.9
+  },
+  "20000642": {
+    "tanim": "BİBER KALİFORNİYA PAKET (650G)",
+    "tip": "L",
+    "nitelik": "Sezonluk",
+    "fiyat": 99.5
+  },
+  "20001373": {
+    "tanim": "BİBER KIL SİVRİ PAKET (250G)",
+    "tip": "L",
+    "nitelik": "Sezonluk",
+    "fiyat": 34.9
+  },
+  "20000026": {
+    "tanim": "BİBER KIRMIZI PAKET (300G)",
+    "tip": "LABC",
+    "nitelik": "Regüler",
+    "fiyat": 37.9
+  },
+  "20001374": {
+    "tanim": "BİBER KÖY PAKET (300G)",
+    "tip": "L",
+    "nitelik": "Sezonluk",
+    "fiyat": 27.9
+  },
+  "20000024": {
+    "tanim": "BİBER SİVRİ PAKET (300G)",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 24.9
+  },
+  "20001278": {
+    "tanim": "BİBER ŞİLİ PAKET (150G)",
+    "tip": "L",
+    "nitelik": "Sezonluk",
+    "fiyat": 31.9
+  },
+  "20000855": {
+    "tanim": "BROKOLİ",
+    "tip": "L",
+    "nitelik": "Sezonluk",
+    "fiyat": 69.5
+  },
+  "20001128": {
+    "tanim": "ÇİLEK PAKET (400G)",
+    "tip": "LABC",
+    "nitelik": "Geçici Delist",
+    "fiyat": 129.5
+  },
+  "20000785": {
+    "tanim": "DEREOTU",
+    "tip": "LA",
+    "nitelik": "Sezonluk",
+    "fiyat": 19.9
+  },
+  "20000761": {
+    "tanim": "DOMATES",
+    "tip": "LABCD",
+    "nitelik": "Regüler",
+    "fiyat": 49.5
+  },
+  "20001097": {
+    "tanim": "DOMATES KOKTEYL PAKET (500G)",
+    "tip": "LABC",
+    "nitelik": "Regüler",
+    "fiyat": 39.5
+  },
+  "20001428": {
+    "tanim": "DOMATES PEMBE PAKET (500G)",
+    "tip": "LA",
+    "nitelik": "Sezonluk",
+    "fiyat": 44.9
+  },
+  "20000763": {
+    "tanim": "DOMATES SALKIM PAKET (500G)",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 49.5
+  },
+  "20001227": {
+    "tanim": "DOMATES ŞEKER (250G)",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 39.5
+  },
+  "20000807": {
+    "tanim": "ELMA GOLDEN",
+    "tip": "LABCD",
+    "nitelik": "Sezonluk",
+    "fiyat": 79.5
+  },
+  "20001392": {
+    "tanim": "ELMA GOLDEN ATIŞTIRMALIK (1KG)",
+    "tip": "LABCD",
+    "nitelik": "Geçici Delist",
+    "fiyat": 48.9
+  },
+  "20001391": {
+    "tanim": "ELMA STARKİNG ATIŞTIRMALIK (1KG)",
+    "tip": "LABCD",
+    "nitelik": "Geçici Delist",
+    "fiyat": 48.9
+  },
+  "20000809": {
+    "tanim": "ELMA GRANNY SMITH",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 99.0
+  },
+  "20000805": {
+    "tanim": "ELMA STARKİNG",
+    "tip": "LABCD",
+    "nitelik": "Sezonluk",
+    "fiyat": 79.5
+  },
+  "20000824": {
+    "tanim": "GREYFURT",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 54.9
+  },
+  "20000766": {
+    "tanim": "HAVUÇ PAKET (350G)",
+    "tip": "LABC",
+    "nitelik": "Regüler",
+    "fiyat": 14.9
+  },
+  "20001021": {
+    "tanim": "HURMA TRABZON",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 99.5
+  },
+  "20001126": {
+    "tanim": "ISPANAK PAKET (350G)",
+    "tip": "LA",
+    "nitelik": "Sezonluk",
+    "fiyat": 54.9
+  },
+  "20000773": {
+    "tanim": "KABAK",
+    "tip": "LAB",
+    "nitelik": "Regüler",
+    "fiyat": 64.9
+  },
+  "20000784": {
+    "tanim": "KARNABAHAR",
+    "tip": "LA",
+    "nitelik": "Sezonluk",
+    "fiyat": 39.5
+  },
+  "20000783": {
+    "tanim": "KEREVİZ",
+    "tip": "LA",
+    "nitelik": "Sezonluk",
+    "fiyat": 54.9
+  },
+  "20001042": {
+    "tanim": "KESTANE KG",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 219.5
+  },
+  "20001390": {
+    "tanim": "KESTANE LÜKS",
+    "tip": "L",
+    "nitelik": "Sezonluk",
+    "fiyat": 279.5
+  },
+  "20000782": {
+    "tanim": "KIVIRCIK",
+    "tip": "LAB",
+    "nitelik": "Regüler",
+    "fiyat": 39.5
+  },
+  "20000834": {
+    "tanim": "KİVİ",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 119.5
+  },
+  "20000020": {
+    "tanim": "KUMKUAT PAKET (200G)",
+    "tip": "LA",
+    "nitelik": "Sezonluk",
+    "fiyat": 24.9
+  },
+  "20000774": {
+    "tanim": "LAHANA BEYAZ",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 24.9
+  },
+  "20000775": {
+    "tanim": "LAHANA KIRMIZI",
+    "tip": "LAB",
+    "nitelik": "Regüler",
+    "fiyat": 39.5
+  },
+  "20000800": {
+    "tanim": "LİMON",
+    "tip": "LABCD",
+    "nitelik": "Regüler",
+    "fiyat": 69.0
+  },
+  "20000820": {
+    "tanim": "MANDALİNA",
+    "tip": "LABCD",
+    "nitelik": "Sezonluk",
+    "fiyat": 29.5
+  },
+  "20000858": {
+    "tanim": "MANGO",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 59.5
+  },
+  "20001218": {
+    "tanim": "MANTAR IZGARALIK (500G)",
+    "tip": "L",
+    "nitelik": "Bölgesel",
+    "fiyat": 89.5
+  },
+  "20001051": {
+    "tanim": "MANTAR TABAK (300G)",
+    "tip": "LABCD",
+    "nitelik": "Regüler",
+    "fiyat": 67.9
+  },
+  "20001122": {
+    "tanim": "MARUL",
+    "tip": "LA",
+    "nitelik": "Regüler",
+    "fiyat": 45.9
+  },
+  "20000776": {
+    "tanim": "MARUL GÖBEK",
+    "tip": "LABC",
+    "nitelik": "Regüler",
+    "fiyat": 34.9
+  },
+  "20000781": {
+    "tanim": "MAYDANOZ",
+    "tip": "LAB",
+    "nitelik": "Regüler",
+    "fiyat": 16.9
+  },
+  "20001483": {
+    "tanim": "MISIR HAŞLANMIŞ TEKLİ PAKET (180G)",
+    "tip": "LAB",
+    "nitelik": "Tek seferlik",
+    "fiyat": 59.5
+  },
+  "20000802": {
+    "tanim": "MUZ İTHAL",
+    "tip": "LABC",
+    "nitelik": "Regüler",
+    "fiyat": 99.5
+  },
+  "20000804": {
+    "tanim": "MUZ YERLİ",
+    "tip": "LABCD",
+    "nitelik": "Sezonluk",
+    "fiyat": 89.5
+  },
+  "20000780": {
+    "tanim": "NANE",
+    "tip": "LA",
+    "nitelik": "Sezonluk",
+    "fiyat": 19.5
+  },
+  "20000825": {
+    "tanim": "NAR",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 79.5
+  },
+  "20000027": {
+    "tanim": "PANCAR HAŞLANMIŞ PAKET (380G)",
+    "tip": "LAB",
+    "nitelik": "Tek seferlik",
+    "fiyat": 79.5
+  },
+  "20000794": {
+    "tanim": "PATATES",
+    "tip": "LABCD",
+    "nitelik": "Regüler",
+    "fiyat": 17.75
+  },
+  "20001336": {
+    "tanim": "PATATES KIRMIZI KIZARTMALIK FİLE",
+    "tip": "L",
+    "nitelik": "Tek seferlik",
+    "fiyat": 39.5
+  },
+  "20001013": {
+    "tanim": "PATATES KIZARTMALIK FİLE",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 39.5
+  },
+  "20000772": {
+    "tanim": "PATLICAN",
+    "tip": "LABC",
+    "nitelik": "Regüler",
+    "fiyat": 64.9
+  },
+  "20001127": {
+    "tanim": "PIRASA PAKET (500G)",
+    "tip": "L",
+    "nitelik": "Sezonluk",
+    "fiyat": 39.5
+  },
+  "20000816": {
+    "tanim": "PORTAKAL",
+    "tip": "LABCD",
+    "nitelik": "Sezonluk",
+    "fiyat": 49.5
+  },
+  "20000818": {
+    "tanim": "PORTAKAL SIKMA FİLE",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 44.9
+  },
+  "20000778": {
+    "tanim": "ROKA",
+    "tip": "LA",
+    "nitelik": "Sezonluk",
+    "fiyat": 19.5
+  },
+  "20000764": {
+    "tanim": "SALATALIK",
+    "tip": "LABCD",
+    "nitelik": "Regüler",
+    "fiyat": 59.5
+  },
+  "20001129": {
+    "tanim": "SALATALIK ÇENGELKÖY PAKET (500G)",
+    "tip": "LABC",
+    "nitelik": "Regüler",
+    "fiyat": 48.9
+  },
+  "20000792": {
+    "tanim": "SARIMSAK FİLE (200G)",
+    "tip": "LABCD",
+    "nitelik": "Regüler",
+    "fiyat": 49.5
+  },
+  "20000796": {
+    "tanim": "SOĞAN",
+    "tip": "LABCD",
+    "nitelik": "Regüler",
+    "fiyat": 13.75
+  },
+  "20000962": {
+    "tanim": "SOĞAN ARPACIK FİLE (500G)",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 59.5
+  },
+  "20001117": {
+    "tanim": "SOĞAN MOR",
+    "tip": "LABC",
+    "nitelik": "Sezonluk",
+    "fiyat": 39.5
+  },
+  "20000777": {
+    "tanim": "SOĞAN TAZE ADET",
+    "tip": "LA",
+    "nitelik": "Sezonluk",
+    "fiyat": 29.5
+  },
+  "20000789": {
+    "tanim": "TURP KIRMIZI",
+    "tip": "LA",
+    "nitelik": "Sezonluk",
+    "fiyat": 44.5
+  },
+  "20001179": {
+    "tanim": "ÜZÜM REDGLOBE",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 99.5
+  },
+  "20000012": {
+    "tanim": "YABAN MERSİNİ PAKET (125G)",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 89.5
+  },
+  "20001203": {
+    "tanim": "ZENCEFİL PAKET (200G)",
+    "tip": "LAB",
+    "nitelik": "Sezonluk",
+    "fiyat": 54.9
+  },
+  "20000019": {
+    "tanim": "ZERDEÇAL PAKET (100G)",
+    "tip": "L",
+    "nitelik": "Sezonluk",
+    "fiyat": 74.9
+  },
+  "20001492": {
+    "tanim": "CEVİZ YERLİ FİLE (500G)",
+    "tip": "LABCD",
+    "nitelik": "Tek seferlik",
+    "fiyat": 125.0
+  }
+}
