@@ -219,7 +219,7 @@ COLUMN_MAPPING = {
     'Sayım Tutarı': 'sayim_tutari',
     'Kaydi Miktar': 'kaydi_miktar',
     'Kaydi Tutar': 'kaydi_tutar',
-    'Fark Miktarı': 'fark_miktari',
+    'Fark Miktarı': 'fark_kumulatif',  # Excel'den gelen kümülatif değer
     'Fark Tutarı': 'fark_tutari',
     'Fire Miktarı': 'fire_miktari',
     'Fire Tutarı': 'fire_tutari',
@@ -239,17 +239,27 @@ COLUMN_MAPPING = {
 
 def save_to_supabase(df):
     """
-    Excel verisini Supabase'e kaydet (upsert)
+    Excel verisini Supabase'e kaydet (delta hesaplamalı)
+
+    Mantık:
+    - Aynı mağaza+ürün+dönem+envanter_sayısı varsa: ATLA
+    - Yeni envanter_sayısı varsa: Delta hesapla ve EKLE
+    - Yeni dönemde: İlk kayıt olarak ekle (delta = kümülatif)
+
     Unique key: magaza_kodu + malzeme_kodu + envanter_donemi + envanter_sayisi
     """
     if supabase is None:
-        return 0, 0, "Supabase bağlantısı yok"
+        return 0, 0, 0, "Supabase bağlantısı yok"
 
     try:
-        # Yükleme tarihi - bugünün tarihi
+        # Yükleme tarihi
         yukleme_tarihi = datetime.now().strftime('%Y-%m-%d')
 
-        records = []
+        # 1. Önce tüm kayıtları hazırla
+        all_records = []
+        magaza_set = set()
+        donem_set = set()
+
         for _, row in df.iterrows():
             record = {}
             for excel_col, db_col in COLUMN_MAPPING.items():
@@ -265,7 +275,6 @@ def save_to_supabase(df):
                         val = float(val) if not np.isnan(val) else None
                     elif isinstance(val, str):
                         val = val.strip()
-                        # Türkçe ondalık formatındaki sayıları çevir (ör: "0,0" -> 0.0)
                         import re
                         if re.match(r'^-?\d+,\d+$', val):
                             try:
@@ -274,18 +283,83 @@ def save_to_supabase(df):
                                 pass
                     record[db_col] = val
 
-            # Yükleme tarihini ekle
             record['yukleme_tarihi'] = yukleme_tarihi
-            records.append(record)
+            all_records.append(record)
 
-        # Batch upsert
+            # Mağaza ve dönem setlerini topla
+            if record.get('magaza_kodu'):
+                magaza_set.add(str(record['magaza_kodu']))
+            if record.get('envanter_donemi'):
+                donem_set.add(str(record['envanter_donemi']))
+
+        # 2. Mevcut kayıtları çek (karşılaştırma için)
+        existing_records = {}
+        for donem in donem_set:
+            try:
+                result = supabase.table(TABLE_NAME).select(
+                    'magaza_kodu,malzeme_kodu,envanter_sayisi,fark_kumulatif'
+                ).eq('envanter_donemi', donem).in_('magaza_kodu', list(magaza_set)).execute()
+
+                if result.data:
+                    for r in result.data:
+                        key = (
+                            str(r.get('magaza_kodu', '')),
+                            str(r.get('malzeme_kodu', '')),
+                            str(donem),
+                            int(r.get('envanter_sayisi', 0))
+                        )
+                        existing_records[key] = r
+            except Exception as e:
+                st.warning(f"Mevcut kayıt çekme hatası: {str(e)[:50]}")
+
+        # 3. Kayıtları filtrele ve delta hesapla
+        records_to_insert = []
+        skipped = 0
+
+        for record in all_records:
+            magaza = str(record.get('magaza_kodu', ''))
+            malzeme = str(record.get('malzeme_kodu', ''))
+            donem = str(record.get('envanter_donemi', ''))
+            try:
+                envanter_sayisi = int(record.get('envanter_sayisi', 0))
+            except:
+                envanter_sayisi = 0
+
+            key = (magaza, malzeme, donem, envanter_sayisi)
+
+            # Zaten varsa atla
+            if key in existing_records:
+                skipped += 1
+                continue
+
+            # Önceki envanteri bul (aynı dönemde, daha küçük envanter_sayisi)
+            fark_kumulatif = record.get('fark_kumulatif', 0) or 0
+            previous_kumulatif = 0
+
+            # Önceki envanterleri ara
+            for prev_sayisi in range(envanter_sayisi - 1, 0, -1):
+                prev_key = (magaza, malzeme, donem, prev_sayisi)
+                if prev_key in existing_records:
+                    previous_kumulatif = existing_records[prev_key].get('fark_kumulatif', 0) or 0
+                    break
+
+            # Delta hesapla
+            fark_delta = fark_kumulatif - previous_kumulatif
+            record['fark_miktari'] = fark_delta
+
+            records_to_insert.append(record)
+
+            # Bu kaydı da existing'e ekle (sonraki kayıtlar için)
+            existing_records[key] = {'fark_kumulatif': fark_kumulatif}
+
+        # 4. Yeni kayıtları ekle (insert, upsert değil)
         batch_size = 500
         inserted = 0
-        updated = 0
 
-        for i in range(0, len(records), batch_size):
-            batch = records[i:i+batch_size]
+        for i in range(0, len(records_to_insert), batch_size):
+            batch = records_to_insert[i:i+batch_size]
             try:
+                # Upsert kullan ama sadece yeni kayıtlar gidecek
                 result = supabase.table(TABLE_NAME).upsert(
                     batch,
                     on_conflict='magaza_kodu,malzeme_kodu,envanter_donemi,envanter_sayisi'
@@ -294,10 +368,10 @@ def save_to_supabase(df):
             except Exception as e:
                 st.warning(f"Batch {i//batch_size + 1} hatası: {str(e)[:100]}")
 
-        return inserted, updated, "OK"
+        return inserted, skipped, len(all_records), "OK"
 
     except Exception as e:
-        return 0, 0, f"Hata: {str(e)}"
+        return 0, 0, 0, f"Hata: {str(e)}"
 
 def get_mevcut_envanter_sayilari(magaza_kodlari, envanter_donemi):
     """
@@ -1730,10 +1804,15 @@ def main_app():
                         st.markdown("---")
                         file_key = f"saved_{uploaded_file.name}_{len(df)}"
                         if file_key not in st.session_state:
-                            basarili, _, mesaj = save_to_supabase(df)
-                            if mesaj == "OK" and basarili > 0:
+                            eklenen, atlanan, toplam, mesaj = save_to_supabase(df)
+                            if mesaj == "OK":
                                 st.session_state[file_key] = True
-                                st.success(f"💾 {basarili} kayıt veritabanına kaydedildi!")
+                                if eklenen > 0:
+                                    st.success(f"💾 {eklenen} yeni kayıt eklendi (delta hesaplandı)")
+                                if atlanan > 0:
+                                    st.info(f"⏭️ {atlanan} kayıt zaten mevcut (atlandı)")
+                                if eklenen == 0 and atlanan > 0:
+                                    st.warning("📋 Tüm kayıtlar zaten veritabanında mevcut.")
                             elif mesaj != "OK":
                                 st.error(f"❌ Kayıt hatası: {mesaj}")
                         else:
