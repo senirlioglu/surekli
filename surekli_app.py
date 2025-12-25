@@ -1933,19 +1933,18 @@ def main_app():
                     with risk_type_tabs[3]:
                         st.caption("Kural: Ardışık 2 envanter sayımında fark_tutari < -500 TL")
 
-                        # DEBUG: Veri kontrolü
-                        with st.expander("🔍 Debug Bilgisi", expanded=False):
-                            if gm_df is not None:
-                                st.write(f"DataFrame shape: {gm_df.shape}")
-                                st.write(f"Kolonlar: {list(gm_df.columns)}")
-                                required = ['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi', 'fark_tutari', 'satis_muduru']
-                                missing = [c for c in required if c not in gm_df.columns]
-                                if missing:
-                                    st.error(f"Eksik kolonlar: {missing}")
-                                else:
-                                    st.success("Tüm gerekli kolonlar mevcut")
+                        # DEBUG: Veri kontrolü - HER ZAMAN AÇIK
+                        st.info(f"📊 gm_df: {gm_df.shape if gm_df is not None else 'None'}")
+                        if gm_df is not None:
+                            required = ['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi', 'fark_tutari', 'satis_muduru']
+                            missing = [c for c in required if c not in gm_df.columns]
+                            if missing:
+                                st.error(f"❌ Eksik kolonlar: {missing}")
+                                st.write(f"Mevcut kolonlar: {list(gm_df.columns)}")
                             else:
-                                st.error("gm_df is None!")
+                                st.success("✅ Tüm gerekli kolonlar mevcut")
+                        else:
+                            st.error("❌ gm_df is None!")
 
                         KRONIK_ESIK = -500
 
@@ -2048,19 +2047,18 @@ def main_app():
                     with risk_type_tabs[4]:
                         st.caption("Kural: Ardışık 2 envanter sayımında fire_tutari < -500 TL")
 
-                        # DEBUG: Veri kontrolü
-                        with st.expander("🔍 Debug Bilgisi", expanded=False):
-                            if gm_df is not None:
-                                st.write(f"DataFrame shape: {gm_df.shape}")
-                                st.write(f"Kolonlar: {list(gm_df.columns)}")
-                                required = ['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi', 'fire_tutari', 'satis_muduru']
-                                missing = [c for c in required if c not in gm_df.columns]
-                                if missing:
-                                    st.error(f"Eksik kolonlar: {missing}")
-                                else:
-                                    st.success("Tüm gerekli kolonlar mevcut")
+                        # DEBUG: Veri kontrolü - HER ZAMAN AÇIK
+                        st.info(f"📊 gm_df: {gm_df.shape if gm_df is not None else 'None'}")
+                        if gm_df is not None:
+                            required = ['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi', 'fire_tutari', 'satis_muduru']
+                            missing = [c for c in required if c not in gm_df.columns]
+                            if missing:
+                                st.error(f"❌ Eksik kolonlar: {missing}")
+                                st.write(f"Mevcut kolonlar: {list(gm_df.columns)}")
                             else:
-                                st.error("gm_df is None!")
+                                st.success("✅ Tüm gerekli kolonlar mevcut")
+                        else:
+                            st.error("❌ gm_df is None!")
 
                         KRONIK_FIRE_ESIK = -500
 
