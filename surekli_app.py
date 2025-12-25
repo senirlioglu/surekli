@@ -1545,7 +1545,7 @@ def main_app():
                         })
 
                     # ==================== ANA SEKMELER: RİSK TİPİ ====================
-                    risk_type_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık"])
+                    risk_type_tabs = st.tabs(["📊 Açık Oranı", "🔓 İç Hırsızlık", "🔢 Yüksek Sayım"])
 
                     # ==================== AÇIK ORANI SEKMESİ ====================
                     with risk_type_tabs[0]:
@@ -1674,6 +1674,101 @@ def main_app():
                                 if len(ic_mag_sorted) > 30: st.caption(f"... ve {len(ic_mag_sorted) - 30} mağaza daha")
                             else:
                                 st.success("🟢 İç hırsızlık şüphesi olan mağaza bulunamadı!")
+
+                    # ==================== YÜKSEK SAYIM SEKMESİ ====================
+                    with risk_type_tabs[2]:
+                        st.caption("Son envanterde 50+ sayım yapan mağazalar | Yüksek sayım = potansiyel manipülasyon")
+
+                        # Yüksek sayım yapan ürünleri bul (sayim_miktari >= 50)
+                        YUKSEK_SAYIM_ESIK = 50
+
+                        # Mevcut df'den yüksek sayımlı ürünleri filtrele
+                        yuksek_sayim_urunler = []
+                        for _, row in df.iterrows():
+                            sayim_mik = row.get('Sayım Miktarı', 0)
+                            if pd.notna(sayim_mik) and float(sayim_mik) >= YUKSEK_SAYIM_ESIK:
+                                yuksek_sayim_urunler.append({
+                                    'magaza_kodu': str(row.get('Mağaza Kodu', '')),
+                                    'magaza_adi': str(row.get('Mağaza Tanım', '')),
+                                    'sm': str(row.get('Satış Müdürü', '')),
+                                    'bs': str(row.get('Bölge Sorumlusu', '')),
+                                    'malzeme_kodu': str(row.get('Malzeme Kodu', '')),
+                                    'malzeme_adi': str(row.get('Malzeme Tanımı', ''))[:40],
+                                    'sayim_miktari': float(sayim_mik),
+                                    'envanter_sayisi': int(row.get('Envanter Sayisi', 0)) if pd.notna(row.get('Envanter Sayisi')) else 0,
+                                    'satis_fiyati': float(row.get('Satış Fiyatı', 0)) if pd.notna(row.get('Satış Fiyatı')) else 0
+                                })
+
+                        ys_sub_tabs = st.tabs(["👔 SM", "📋 BS", "🏪 Mağaza"])
+
+                        # ----- SM Yüksek Sayım -----
+                        with ys_sub_tabs[0]:
+                            if yuksek_sayim_urunler:
+                                # SM bazında grupla
+                                sm_yuksek = {}
+                                for u in yuksek_sayim_urunler:
+                                    sm = u['sm']
+                                    if sm not in sm_yuksek:
+                                        sm_yuksek[sm] = {'urunler': [], 'magazalar': set()}
+                                    sm_yuksek[sm]['urunler'].append(u)
+                                    sm_yuksek[sm]['magazalar'].add(u['magaza_kodu'])
+
+                                sm_sorted = sorted(sm_yuksek.items(), key=lambda x: len(x[1]['urunler']), reverse=True)
+                                st.error(f"🔢 {len(sm_sorted)} SM'de yüksek sayım tespit edildi")
+
+                                for sm_adi, data in sm_sorted:
+                                    with st.expander(f"🔢 **{sm_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['sayim_miktari'], reverse=True)[:20]:
+                                            st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
+                            else:
+                                st.success(f"🟢 {YUKSEK_SAYIM_ESIK}+ sayım yapan ürün bulunamadı!")
+
+                        # ----- BS Yüksek Sayım -----
+                        with ys_sub_tabs[1]:
+                            if yuksek_sayim_urunler:
+                                # BS bazında grupla
+                                bs_yuksek = {}
+                                for u in yuksek_sayim_urunler:
+                                    bs = u['bs']
+                                    if bs not in bs_yuksek:
+                                        bs_yuksek[bs] = {'urunler': [], 'magazalar': set()}
+                                    bs_yuksek[bs]['urunler'].append(u)
+                                    bs_yuksek[bs]['magazalar'].add(u['magaza_kodu'])
+
+                                bs_sorted = sorted(bs_yuksek.items(), key=lambda x: len(x[1]['urunler']), reverse=True)
+                                st.error(f"🔢 {len(bs_sorted)} BS'de yüksek sayım tespit edildi")
+
+                                for bs_adi, data in bs_sorted:
+                                    with st.expander(f"🔢 **{bs_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['sayim_miktari'], reverse=True)[:20]:
+                                            st.write(f"**{urun['magaza_kodu']}** {urun['magaza_adi'][:20]} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
+                            else:
+                                st.success(f"🟢 {YUKSEK_SAYIM_ESIK}+ sayım yapan ürün bulunamadı!")
+
+                        # ----- Mağaza Yüksek Sayım -----
+                        with ys_sub_tabs[2]:
+                            if yuksek_sayim_urunler:
+                                # Mağaza bazında grupla
+                                mag_yuksek = {}
+                                for u in yuksek_sayim_urunler:
+                                    mag = u['magaza_kodu']
+                                    if mag not in mag_yuksek:
+                                        mag_yuksek[mag] = {'adi': u['magaza_adi'], 'sm': u['sm'], 'bs': u['bs'], 'urunler': []}
+                                    mag_yuksek[mag]['urunler'].append(u)
+
+                                mag_sorted = sorted(mag_yuksek.items(), key=lambda x: len(x[1]['urunler']), reverse=True)
+                                st.error(f"🔢 {len(mag_sorted)} mağazada yüksek sayım tespit edildi")
+
+                                for mag_kodu, data in mag_sorted[:30]:
+                                    with st.expander(f"🔢 **{mag_kodu}** {data['adi'][:25]} | {len(data['urunler'])} ürün | SM: {data['sm']} | BS: {data['bs']}"):
+                                        for urun in sorted(data['urunler'], key=lambda x: x['sayim_miktari'], reverse=True)[:15]:
+                                            st.write(f"**{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
+                                            st.caption(f"  Sayım: {urun['sayim_miktari']:.0f} | Envanter: {urun['envanter_sayisi']} | ₺{urun['satis_fiyati']:.0f}")
+                                if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
+                            else:
+                                st.success(f"🟢 {YUKSEK_SAYIM_ESIK}+ sayım yapan mağaza bulunamadı!")
 
                 else:
                     st.info("📥 Veri bulunamadı")
