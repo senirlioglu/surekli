@@ -1072,8 +1072,29 @@ def main_app():
             gm_df = get_gm_ozet_data(tuple(selected_periods))
 
             if gm_df is not None and len(gm_df) > 0:
-                # Kolon isimlerini normalize et
-                gm_df = normalize_dataframe_columns(gm_df)
+                # ========== TÜM HESAPLAMALARI CACHE'LE ==========
+                period_key = tuple(selected_periods)
+
+                if st.session_state.get("gm_cache_key") != period_key:
+                    st.session_state["gm_cache_key"] = period_key
+
+                    # Kolon isimlerini normalize et (1 kez)
+                    gm_df = normalize_dataframe_columns(gm_df)
+                    st.session_state["gm_df_normalized"] = gm_df
+
+                    # Temel istatistikler (1 kez)
+                    st.session_state["magaza_sayisi"] = gm_df['magaza_kodu'].nunique()
+                    st.session_state["toplam_fark"] = gm_df['fark_tutari'].sum() if 'fark_tutari' in gm_df.columns else 0
+                    st.session_state["toplam_fire"] = gm_df['fire_tutari'].sum() if 'fire_tutari' in gm_df.columns else 0
+                    st.session_state["toplam_satis"] = gm_df['satis_hasilati'].sum() if 'satis_hasilati' in gm_df.columns else 0
+
+                # Cache'den oku
+                gm_df = st.session_state.get("gm_df_normalized", gm_df)
+                magaza_sayisi = st.session_state.get("magaza_sayisi", 0)
+                toplam_fark = st.session_state.get("toplam_fark", 0)
+                toplam_fire = st.session_state.get("toplam_fire", 0)
+                toplam_satis = st.session_state.get("toplam_satis", 0)
+                toplam_acik = toplam_fark + toplam_fire
 
                 # Gerekli kolonları kontrol et
                 required_cols = ['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi', 'fark_tutari', 'fire_tutari']
@@ -1085,13 +1106,7 @@ def main_app():
 
                 st.caption(f"📊 {len(gm_df)} satır veri çekildi")
 
-                magaza_sayisi = gm_df['magaza_kodu'].nunique()
-                toplam_fark = gm_df['fark_tutari'].sum() if 'fark_tutari' in gm_df.columns else 0
-                toplam_fire = gm_df['fire_tutari'].sum() if 'fire_tutari' in gm_df.columns else 0
-                toplam_satis = gm_df['satis_hasilati'].sum() if 'satis_hasilati' in gm_df.columns else 0
-                toplam_acik = toplam_fark + toplam_fire
-
-                # Oran hesapla
+                # Oran hesapla (cache'den gelen değerlerle)
                 fark_oran = (toplam_fark / toplam_satis * 100) if toplam_satis != 0 else 0
                 fire_oran = (toplam_fire / toplam_satis * 100) if toplam_satis != 0 else 0
                 acik_oran = (toplam_acik / toplam_satis * 100) if toplam_satis != 0 else 0
