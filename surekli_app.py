@@ -883,10 +883,10 @@ def prepare_ic_counts_vectorized(ic_df: pd.DataFrame) -> dict:
     # Şüpheli koşulları (vektörel)
     # 1. fiyat >= 100
     # 2. fark < 0 (kayıp)
-    # 3. iptal > 0
+    # 3. iptal != 0 (iptal var - negatif veya pozitif olabilir)
     # 4. abs(fark - iptal) <= 10
     sonuc = (fark - iptal).abs()
-    supheli_mask = (fiyat >= 100) & (fark < 0) & (iptal > 0) & (sonuc <= 10)
+    supheli_mask = (fiyat >= 100) & (fark < 0) & (iptal != 0) & (sonuc <= 10)
 
     # Sadece şüphelileri al
     supheli_df = ic_df[supheli_mask]
