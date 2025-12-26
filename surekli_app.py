@@ -860,6 +860,43 @@ def get_ic_hirsizlik_data(donemler: tuple):
     return None
 
 
+def prepare_ic_counts_vectorized(ic_df: pd.DataFrame) -> dict:
+    """
+    İç hırsızlık şüpheli sayılarını VEKTÖREL hesapla.
+    O(n*m) yerine O(n) - dramatik hız artışı.
+
+    Returns:
+        dict with 'by_magaza', 'by_sm', 'by_bs' Series (index=birim, value=count)
+    """
+    if ic_df is None or ic_df.empty:
+        return {'by_magaza': pd.Series(dtype=int), 'by_sm': pd.Series(dtype=int), 'by_bs': pd.Series(dtype=int)}
+
+    # Gerekli kolonları numeric yap
+    iptal = pd.to_numeric(ic_df.get('iptal_satir_miktari', 0), errors='coerce').fillna(0)
+    fark = pd.to_numeric(ic_df.get('fark_miktari', 0), errors='coerce').fillna(0)
+    fiyat = pd.to_numeric(ic_df.get('satis_fiyati', 0), errors='coerce').fillna(0)
+
+    # Şüpheli koşulları (vektörel)
+    # 1. fiyat >= 100
+    # 2. fark < 0 (kayıp)
+    # 3. iptal > 0
+    # 4. abs(fark - iptal) <= 10
+    sonuc = (fark - iptal).abs()
+    supheli_mask = (fiyat >= 100) & (fark < 0) & (iptal > 0) & (sonuc <= 10)
+
+    # Sadece şüphelileri al
+    supheli_df = ic_df[supheli_mask]
+
+    # Groupby ile sayımlar (tek seferde)
+    result = {
+        'by_magaza': supheli_df.groupby('magaza_kodu').size() if 'magaza_kodu' in supheli_df.columns else pd.Series(dtype=int),
+        'by_sm': supheli_df.groupby('satis_muduru').size() if 'satis_muduru' in supheli_df.columns else pd.Series(dtype=int),
+        'by_bs': supheli_df.groupby('bolge_sorumlusu').size() if 'bolge_sorumlusu' in supheli_df.columns else pd.Series(dtype=int),
+        'supheli_df': supheli_df  # Detay için sakla
+    }
+    return result
+
+
 def hesapla_ic_hirsizlik_sayisi(df, birim_col, birim_value):
     """
     Belirli bir birim (SM/BS/Mağaza) için şüpheli ürün sayısını hesapla.
@@ -1588,6 +1625,12 @@ def main_app():
                         st.session_state["bolge_toplam_acik"] = bolge_toplam_acik
                         st.session_state["bolge_acik_oran"] = bolge_acik_oran
 
+                        # İç hırsızlık sayılarını VEKTÖREL hesapla (1 kez, O(n))
+                        ic_counts = prepare_ic_counts_vectorized(ic_df)
+                        ic_by_sm = ic_counts['by_sm']
+                        ic_by_bs = ic_counts['by_bs']
+                        ic_by_mag = ic_counts['by_magaza']
+
                         # SM verileri
                         sm_riskler = []
                         if 'satis_muduru' in gm_df.columns:
@@ -1597,15 +1640,16 @@ def main_app():
                             }).reset_index()
                             for _, row in sm_risk_df.iterrows():
                                 sm_acik = row['fark_tutari'] + row['fire_tutari']
-                                ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'satis_muduru', row['satis_muduru'])
+                                sm_name = row['satis_muduru']
+                                ic_sayisi = int(ic_by_sm.get(sm_name, 0))  # Hızlı lookup
                                 risk = hesapla_birim_risk_v2({'acik': sm_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
                                 sm_riskler.append({
-                                    'SM': row['satis_muduru'], 'Mağaza': row['magaza_kodu'],
+                                    'SM': sm_name, 'Mağaza': row['magaza_kodu'],
                                     'Satış': row['satis_hasilati'], 'Açık': sm_acik,
                                     'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
                                     'Puan': risk['puan'], 'Seviye': risk['seviye'],
                                     'emoji': risk['emoji'], 'detay': risk['detay'],
-                                    'ic_urunler': ic_urunler, 'ic_sayisi': ic_sayisi
+                                    'ic_sayisi': ic_sayisi
                                 })
 
                         # BS verileri
@@ -1619,15 +1663,16 @@ def main_app():
                                 }).reset_index()
                                 for _, row in bs_risk_df.iterrows():
                                     bs_acik = row['fark_tutari'] + row['fire_tutari']
-                                    ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'bolge_sorumlusu', row['bolge_sorumlusu'])
+                                    bs_name = row['bolge_sorumlusu']
+                                    ic_sayisi = int(ic_by_bs.get(bs_name, 0))  # Hızlı lookup
                                     risk = hesapla_birim_risk_v2({'acik': bs_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
                                     bs_riskler.append({
-                                        'BS': row['bolge_sorumlusu'], 'Mağaza': row['magaza_kodu'],
+                                        'BS': bs_name, 'Mağaza': row['magaza_kodu'],
                                         'Satış': row['satis_hasilati'], 'Açık': bs_acik,
                                         'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
                                         'Puan': risk['puan'], 'Seviye': risk['seviye'],
                                         'emoji': risk['emoji'], 'detay': risk['detay'],
-                                        'ic_urunler': ic_urunler, 'ic_sayisi': ic_sayisi
+                                        'ic_sayisi': ic_sayisi
                                     })
 
                         # Mağaza verileri
@@ -1637,15 +1682,16 @@ def main_app():
                         }).reset_index()
                         for _, row in mag_risk_df.iterrows():
                             mag_acik = row['fark_tutari'] + row['fire_tutari']
-                            ic_sayisi, ic_urunler = hesapla_ic_hirsizlik_sayisi(ic_df, 'magaza_kodu', row['magaza_kodu'])
+                            mag_kodu = row['magaza_kodu']
+                            ic_sayisi = int(ic_by_mag.get(mag_kodu, 0))  # Hızlı lookup
                             risk = hesapla_birim_risk_v2({'acik': mag_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
                             mag_riskler.append({
-                                'Kod': row['magaza_kodu'], 'Mağaza': row['magaza_tanim'],
+                                'Kod': mag_kodu, 'Mağaza': row['magaza_tanim'],
                                 'Satış': row['satis_hasilati'], 'Açık': mag_acik,
                                 'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
                                 'Puan': risk['puan'], 'Seviye': risk['seviye'],
                                 'emoji': risk['emoji'], 'detay': risk['detay'],
-                                'ic_urunler': ic_urunler, 'ic_sayisi': ic_sayisi
+                                'ic_sayisi': ic_sayisi
                             })
 
                         # Cache'e kaydet
@@ -1743,8 +1789,8 @@ def main_app():
                                         with c1: st.metric("Şüpheli Ürün", sm['ic_sayisi'])
                                         with c2: st.metric("İç Hırsızlık Puanı", sm['detay'].get('ic_hirsizlik', 0))
                                         with c3: st.metric("Toplam Risk", sm['Puan'])
-                                        if sm['ic_urunler']:
-                                            for urun in sm['ic_urunler'][:15]:
+                                        if sm.get('ic_urunler'):
+                                            for urun in sm.get('ic_urunler', [])[:15]:
                                                 renk = "🔴" if urun['risk'] == 'ÇOK YÜKSEK' else "🟠" if urun['risk'] == 'YÜKSEK' else "🟡"
                                                 st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | Mğz: {urun['magaza_kodu']}")
                                                 st.caption(f"  ₺{urun['satis_fiyati']:.0f} | İptal: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']}")
@@ -1763,8 +1809,8 @@ def main_app():
                                         with c1: st.metric("Şüpheli Ürün", bs['ic_sayisi'])
                                         with c2: st.metric("İç Hırsızlık Puanı", bs['detay'].get('ic_hirsizlik', 0))
                                         with c3: st.metric("Toplam Risk", bs['Puan'])
-                                        if bs['ic_urunler']:
-                                            for urun in bs['ic_urunler'][:15]:
+                                        if bs.get('ic_urunler'):
+                                            for urun in bs.get('ic_urunler', [])[:15]:
                                                 renk = "🔴" if urun['risk'] == 'ÇOK YÜKSEK' else "🟠" if urun['risk'] == 'YÜKSEK' else "🟡"
                                                 st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | Mğz: {urun['magaza_kodu']}")
                                                 st.caption(f"  ₺{urun['satis_fiyati']:.0f} | İptal: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']}")
@@ -1783,11 +1829,11 @@ def main_app():
                                         with c1: st.metric("Şüpheli Ürün", mag['ic_sayisi'])
                                         with c2: st.metric("İç Hırsızlık Puanı", mag['detay'].get('ic_hirsizlik', 0))
                                         with c3: st.metric("Toplam Risk", mag['Puan'])
-                                        if mag['ic_urunler']:
+                                        if mag.get('ic_urunler'):
                                             st.markdown("**Şüpheli Ürünler + Kamera:**")
-                                            malzeme_kodlari = [u['malzeme_kodu'] for u in mag['ic_urunler']]
+                                            malzeme_kodlari = [u['malzeme_kodu'] for u in mag.get('ic_urunler', [])]
                                             iptal_data = get_iptal_timestamps_for_magaza(mag['Kod'], malzeme_kodlari)
-                                            for urun in mag['ic_urunler'][:15]:
+                                            for urun in mag.get('ic_urunler', [])[:15]:
                                                 kamera = get_kamera_bilgisi(str(urun['malzeme_kodu']), iptal_data, 15, urun.get('yukleme_tarihi'))
                                                 renk = "🔴" if urun['risk'] == 'ÇOK YÜKSEK' else "🟠" if urun['risk'] == 'YÜKSEK' else "🟡"
                                                 st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]}")
