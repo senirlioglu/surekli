@@ -934,10 +934,10 @@ def find_tam_sayili_sayim(gm_df: pd.DataFrame) -> list:
     meyve_mask = son_df['depolama'].str.contains('MEYVE', na=False) | son_df['depolama'].str.contains('SEBZ', na=False)
 
     # Meyve/Sebz istisnaları (bunlar tam sayı OLABİLİR)
-    gramaj_pattern = r'\(\d+G\)'  # (500G), (300G) gibi
+    gramaj_pattern = r'\(\d+K?G\)'  # (500G), (300G), (1KG) gibi
     meyve_istisna = (
         son_df['malzeme_adi'].str.contains(gramaj_pattern, regex=True, na=False) |
-        son_df['malzeme_adi'].str.contains('PAKET|ADET|TABAK', regex=True, na=False) |
+        son_df['malzeme_adi'].str.contains('PAKET|ADET|TABAK|AVAKADO|ANANAS|MANGO', regex=True, na=False) |
         (son_df['mal_grubu'] == 'YEŞİLLİK')
     )
 
@@ -945,7 +945,7 @@ def find_tam_sayili_sayim(gm_df: pd.DataFrame) -> list:
     tavuk_mask = son_df['depolama'].str.contains('ET', na=False) | son_df['depolama'].str.contains('TAVUK', na=False)
 
     # Et-Tavuk istisnaları (bunlar tam sayı OLABİLİR)
-    tavuk_istisna = son_df['malzeme_adi'].str.contains('KIYMA|KUŞBAŞI', regex=True, na=False)
+    tavuk_istisna = son_df['malzeme_adi'].str.contains('KIYMA|KUŞBAŞI|KÖFTE', regex=True, na=False)
 
     # Şüpheli: Tam sayı VE (Meyve/Sebz ama istisna değil) VEYA (Et-Tavuk ama istisna değil)
     supheli_mask = son_df['tam_sayi'] & (
