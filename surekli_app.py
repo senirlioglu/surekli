@@ -1833,6 +1833,31 @@ def main_app():
                         ic_by_sm = ic_counts['by_sm']
                         ic_by_bs = ic_counts['by_bs']
                         ic_by_mag = ic_counts['by_magaza']
+                        supheli_df = ic_counts.get('supheli_df', pd.DataFrame())
+
+                        # ic_urunler için yardımcı fonksiyon
+                        def get_ic_urunler(df, col, val):
+                            if df is None or df.empty:
+                                return []
+                            filtered = df[df[col] == val] if col in df.columns else pd.DataFrame()
+                            result = []
+                            for _, r in filtered.head(20).iterrows():
+                                iptal = r.get('iptal_satir_miktari', 0) or 0
+                                fark = r.get('fark_miktari', 0) or 0
+                                fiyat = r.get('satis_fiyati', 0) or 0
+                                sonuc = abs(fark - iptal)
+                                risk_str = 'ÇOK YÜKSEK' if sonuc <= 2 else 'YÜKSEK' if sonuc <= 5 else 'ORTA'
+                                result.append({
+                                    'malzeme_kodu': r.get('malzeme_kodu', ''),
+                                    'malzeme_tanimi': str(r.get('malzeme_tanimi', ''))[:35],
+                                    'magaza_kodu': r.get('magaza_kodu', ''),
+                                    'satis_fiyati': fiyat,
+                                    'iptal_miktari': iptal,
+                                    'fark_miktari': fark,
+                                    'risk': risk_str,
+                                    'yukleme_tarihi': r.get('yukleme_tarihi', None)
+                                })
+                            return result
 
                         # SM verileri
                         sm_riskler = []
@@ -1846,13 +1871,15 @@ def main_app():
                                 sm_name = row['satis_muduru']
                                 ic_sayisi = int(ic_by_sm.get(sm_name, 0))  # Hızlı lookup
                                 risk = hesapla_birim_risk_v2({'acik': sm_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
+                                ic_urunler = get_ic_urunler(supheli_df, 'satis_muduru', sm_name) if ic_sayisi > 0 else []
                                 sm_riskler.append({
                                     'SM': sm_name, 'Mağaza': row['magaza_kodu'],
                                     'Satış': row['satis_hasilati'], 'Açık': sm_acik,
                                     'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
                                     'Puan': risk['puan'], 'Seviye': risk['seviye'],
                                     'emoji': risk['emoji'], 'detay': risk['detay'],
-                                    'ic_sayisi': ic_sayisi
+                                    'ic_sayisi': ic_sayisi,
+                                    'ic_urunler': ic_urunler
                                 })
 
                         # BS verileri
@@ -1869,13 +1896,15 @@ def main_app():
                                     bs_name = row['bolge_sorumlusu']
                                     ic_sayisi = int(ic_by_bs.get(bs_name, 0))  # Hızlı lookup
                                     risk = hesapla_birim_risk_v2({'acik': bs_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
+                                    ic_urunler = get_ic_urunler(supheli_df, 'bolge_sorumlusu', bs_name) if ic_sayisi > 0 else []
                                     bs_riskler.append({
                                         'BS': bs_name, 'Mağaza': row['magaza_kodu'],
                                         'Satış': row['satis_hasilati'], 'Açık': bs_acik,
                                         'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
                                         'Puan': risk['puan'], 'Seviye': risk['seviye'],
                                         'emoji': risk['emoji'], 'detay': risk['detay'],
-                                        'ic_sayisi': ic_sayisi
+                                        'ic_sayisi': ic_sayisi,
+                                        'ic_urunler': ic_urunler
                                     })
 
                         # Mağaza verileri
@@ -1888,13 +1917,15 @@ def main_app():
                             mag_kodu = row['magaza_kodu']
                             ic_sayisi = int(ic_by_mag.get(mag_kodu, 0))  # Hızlı lookup
                             risk = hesapla_birim_risk_v2({'acik': mag_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
+                            ic_urunler = get_ic_urunler(supheli_df, 'magaza_kodu', mag_kodu) if ic_sayisi > 0 else []
                             mag_riskler.append({
                                 'Kod': mag_kodu, 'Mağaza': row['magaza_tanim'],
                                 'Satış': row['satis_hasilati'], 'Açık': mag_acik,
                                 'Açık%': risk['birim_oran'], 'Katsayı': risk['katsayi'],
                                 'Puan': risk['puan'], 'Seviye': risk['seviye'],
                                 'emoji': risk['emoji'], 'detay': risk['detay'],
-                                'ic_sayisi': ic_sayisi
+                                'ic_sayisi': ic_sayisi,
+                                'ic_urunler': ic_urunler
                             })
 
                         # Cache'e kaydet
