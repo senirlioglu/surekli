@@ -941,7 +941,7 @@ def find_tam_sayili_sayim(gm_df: pd.DataFrame) -> list:
     gramaj_pattern = r'\(\d+K?G\)'  # (500G), (300G), (1KG) gibi
     meyve_istisna = (
         son_df['malzeme_adi'].str.contains(gramaj_pattern, regex=True, na=False) |
-        son_df['malzeme_adi'].str.contains('PAKET|ADET|TABAK|AVAKADO|ANANAS|MANGO', regex=True, na=False) |
+        son_df['malzeme_adi'].str.contains('PAKET|ADET|TABAK|AVAKADO|AVOKADO|ANANAS|MANGO', regex=True, na=False) |
         (son_df['mal_grubu'] == 'YEŞİLLİK')
     )
 
