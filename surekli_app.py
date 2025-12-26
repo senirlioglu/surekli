@@ -628,7 +628,7 @@ def get_gm_ozet_data(donemler: tuple):
     if not donemler:
         return None
 
-    columns = 'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,depolama_kosulu,fark_tutari,fire_tutari,satis_hasilati,sayim_miktari,envanter_sayisi,malzeme_kodu,malzeme_tanimi,satis_fiyati'
+    columns = 'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,depolama_kosulu,mal_grubu_tanimi,fark_tutari,fire_tutari,satis_hasilati,sayim_miktari,envanter_sayisi,malzeme_kodu,malzeme_tanimi,satis_fiyati'
     all_data = fetch_data_for_periods(list(donemler), columns=columns)
 
     if all_data:
@@ -894,6 +894,179 @@ def prepare_ic_counts_vectorized(ic_df: pd.DataFrame) -> dict:
         'by_bs': supheli_df.groupby('bolge_sorumlusu').size() if 'bolge_sorumlusu' in supheli_df.columns else pd.Series(dtype=int),
         'supheli_df': supheli_df  # Detay için sakla
     }
+    return result
+
+
+def find_tam_sayili_sayim(gm_df: pd.DataFrame) -> list:
+    """
+    Tam sayılı sayım şüphelilerini bul (VEKTÖREL).
+    Meyve/Sebze ve Et-Tavuk'ta sayım miktarı tam sayı olmamalı (istisnalar hariç).
+
+    İstisnalar:
+    - Meyve/Sebz: gramaj (XXG), paket/adet/tabak içeren, YEŞİLLİK mal grubu
+    - Et-Tavuk: kıyma veya kuşbaşı içeren
+    """
+    if gm_df is None or gm_df.empty:
+        return []
+
+    # Sadece son envanter sayısını al (en yüksek envanter_sayisi)
+    if 'envanter_sayisi' not in gm_df.columns:
+        return []
+
+    # En son envanter kaydını al (mağaza+ürün bazında)
+    gm_df = gm_df.copy()
+    gm_df['envanter_sayisi'] = pd.to_numeric(gm_df['envanter_sayisi'], errors='coerce').fillna(0)
+    idx = gm_df.groupby(['magaza_kodu', 'malzeme_kodu'])['envanter_sayisi'].idxmax()
+    son_df = gm_df.loc[idx].copy()
+
+    # Sayım miktarını numeric yap
+    son_df['sayim_miktari'] = pd.to_numeric(son_df['sayim_miktari'], errors='coerce').fillna(0)
+
+    # Tam sayı kontrolü: sayim % 1 == 0 ve sayim > 0
+    son_df['tam_sayi'] = (son_df['sayim_miktari'] % 1 == 0) & (son_df['sayim_miktari'] > 0)
+
+    # Depolama koşulu kontrolü
+    son_df['depolama'] = son_df['depolama_kosulu'].fillna('').str.upper()
+    son_df['malzeme_adi'] = son_df['malzeme_tanimi'].fillna('').str.upper()
+    son_df['mal_grubu'] = son_df['mal_grubu_tanimi'].fillna('').str.upper()
+
+    # Meyve/Sebz filtresi
+    meyve_mask = son_df['depolama'].str.contains('MEYVE', na=False) | son_df['depolama'].str.contains('SEBZ', na=False)
+
+    # Meyve/Sebz istisnaları (bunlar tam sayı OLABİLİR)
+    gramaj_pattern = r'\(\d+G\)'  # (500G), (300G) gibi
+    meyve_istisna = (
+        son_df['malzeme_adi'].str.contains(gramaj_pattern, regex=True, na=False) |
+        son_df['malzeme_adi'].str.contains('PAKET|ADET|TABAK', regex=True, na=False) |
+        (son_df['mal_grubu'] == 'YEŞİLLİK')
+    )
+
+    # Et-Tavuk filtresi
+    tavuk_mask = son_df['depolama'].str.contains('ET', na=False) | son_df['depolama'].str.contains('TAVUK', na=False)
+
+    # Et-Tavuk istisnaları (bunlar tam sayı OLABİLİR)
+    tavuk_istisna = son_df['malzeme_adi'].str.contains('KIYMA|KUŞBAŞI', regex=True, na=False)
+
+    # Şüpheli: Tam sayı VE (Meyve/Sebz ama istisna değil) VEYA (Et-Tavuk ama istisna değil)
+    supheli_mask = son_df['tam_sayi'] & (
+        (meyve_mask & ~meyve_istisna) |
+        (tavuk_mask & ~tavuk_istisna)
+    )
+
+    supheli_df = son_df[supheli_mask].copy()
+
+    if supheli_df.empty:
+        return []
+
+    # Fark tutarını al
+    supheli_df['fark_tutari'] = pd.to_numeric(supheli_df['fark_tutari'], errors='coerce').fillna(0)
+
+    # Risk seviyesi: fark = 0 ise BÜYÜK RİSK
+    supheli_df['risk'] = supheli_df['fark_tutari'].apply(lambda x: 'BÜYÜK RİSK' if x == 0 else 'RİSK')
+
+    # Listeye dönüştür
+    result = []
+    for _, row in supheli_df.iterrows():
+        result.append({
+            'magaza_kodu': str(row.get('magaza_kodu', '')),
+            'magaza_adi': str(row.get('magaza_tanim', ''))[:25],
+            'sm': str(row.get('satis_muduru', '')),
+            'bs': str(row.get('bolge_sorumlusu', '')),
+            'malzeme_kodu': str(row.get('malzeme_kodu', '')),
+            'malzeme_adi': str(row.get('malzeme_tanimi', ''))[:35],
+            'depolama': str(row.get('depolama_kosulu', '')),
+            'sayim': float(row.get('sayim_miktari', 0)),
+            'fark_tutari': float(row.get('fark_tutari', 0)),
+            'risk': row.get('risk', 'RİSK'),
+            'envanter_sayisi': int(row.get('envanter_sayisi', 0))
+        })
+
+    return result
+
+
+def find_ayni_sayim(gm_df: pd.DataFrame) -> list:
+    """
+    Aynı sayım şüphelilerini bul.
+    Envanter serisinde 2+ ardışık sayımda aynı miktar = kafadan sayım şüphesi.
+    NOT: Bu fonksiyon envanter serisini çekmek zorunda, performans için batch işlem.
+    """
+    if gm_df is None or gm_df.empty:
+        return []
+
+    # Meyve/Sebz ve Et-Tavuk filtrele (sadece bunlarda kontrol)
+    gm_df = gm_df.copy()
+    gm_df['depolama'] = gm_df['depolama_kosulu'].fillna('').str.upper()
+    ilgili_mask = (
+        gm_df['depolama'].str.contains('MEYVE', na=False) |
+        gm_df['depolama'].str.contains('SEBZ', na=False) |
+        gm_df['depolama'].str.contains('ET', na=False) |
+        gm_df['depolama'].str.contains('TAVUK', na=False)
+    )
+
+    # En az 2 envanter kaydı olan ürünleri bul
+    gm_df['envanter_sayisi'] = pd.to_numeric(gm_df['envanter_sayisi'], errors='coerce').fillna(0)
+    count_df = gm_df[ilgili_mask].groupby(['magaza_kodu', 'malzeme_kodu']).size().reset_index(name='kayit_sayisi')
+    coklu = count_df[count_df['kayit_sayisi'] >= 2]
+
+    if coklu.empty:
+        return []
+
+    # Sadece son fark tutarı için indexleri al
+    idx = gm_df.groupby(['magaza_kodu', 'malzeme_kodu'])['envanter_sayisi'].idxmax()
+    son_fark_df = gm_df.loc[idx][['magaza_kodu', 'malzeme_kodu', 'fark_tutari', 'magaza_tanim',
+                                   'satis_muduru', 'bolge_sorumlusu', 'malzeme_tanimi', 'depolama_kosulu']].copy()
+
+    result = []
+
+    # Her mağaza+ürün için envanter serisini kontrol et
+    for _, row in coklu.iterrows():
+        mag = row['magaza_kodu']
+        mal = row['malzeme_kodu']
+
+        # Bu ürünün tüm kayıtlarını al
+        urun_df = gm_df[(gm_df['magaza_kodu'] == mag) & (gm_df['malzeme_kodu'] == mal)].sort_values('envanter_sayisi')
+
+        if len(urun_df) < 2:
+            continue
+
+        # Sayım miktarlarını al
+        sayimlar = pd.to_numeric(urun_df['sayim_miktari'], errors='coerce').fillna(0).tolist()
+        envanter_numaralari = urun_df['envanter_sayisi'].tolist()
+
+        # Ardışık aynı sayımları bul
+        ayni_sayim_var = False
+        ayni_count = 0
+        for i in range(1, len(sayimlar)):
+            if sayimlar[i] == sayimlar[i-1] and sayimlar[i] > 0:
+                ayni_sayim_var = True
+                ayni_count += 1
+
+        if ayni_sayim_var:
+            # Detay bilgilerini al
+            son_kayit = son_fark_df[(son_fark_df['magaza_kodu'] == mag) & (son_fark_df['malzeme_kodu'] == mal)]
+            if son_kayit.empty:
+                continue
+
+            son = son_kayit.iloc[0]
+            fark = float(son.get('fark_tutari', 0) or 0)
+
+            # Seri string oluştur
+            seri_str = " → ".join([f"{int(e)}.:{int(s)}" for e, s in zip(envanter_numaralari, sayimlar)])
+
+            result.append({
+                'magaza_kodu': str(mag),
+                'magaza_adi': str(son.get('magaza_tanim', ''))[:25],
+                'sm': str(son.get('satis_muduru', '')),
+                'bs': str(son.get('bolge_sorumlusu', '')),
+                'malzeme_kodu': str(mal),
+                'malzeme_adi': str(son.get('malzeme_tanimi', ''))[:35],
+                'depolama': str(son.get('depolama_kosulu', '')),
+                'seri': seri_str,
+                'ayni_count': ayni_count,
+                'fark_tutari': fark,
+                'risk': 'BÜYÜK RİSK' if fark == 0 else 'RİSK'
+            })
+
     return result
 
 
@@ -1740,7 +1913,11 @@ def main_app():
                     # ==================== RİSK TİPİ SEÇİMİ (SELECTBOX - HIZLI) ====================
                     col_risk, col_view = st.columns([2, 1])
                     with col_risk:
-                        risk_type = st.selectbox("📊 Risk Tipi:", ["📊 Açık Oranı", "🔓 İç Hırsızlık", "🔢 Yüksek Sayım", "📉 Kronik Açık", "🔥 Kronik Fire"], key="risk_type_select")
+                        risk_type = st.selectbox("📊 Risk Tipi:", [
+                            "📊 Açık Oranı", "🔓 İç Hırsızlık", "🔢 Yüksek Sayım",
+                            "📉 Kronik Açık", "🔥 Kronik Fire",
+                            "🔢 Tam Sayılı Sayım", "🔄 Aynı Sayım"
+                        ], key="risk_type_select")
                     with col_view:
                         view_type = st.selectbox("👁️ Görünüm:", ["👔 SM", "📋 BS", "🏪 Mağaza"], key="risk_view_select")
 
@@ -2224,6 +2401,198 @@ def main_app():
                                 if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
                             else:
                                 st.success("🟢 Kronik fire bulunamadı!")
+
+                    # ==================== TAM SAYILI SAYIM ====================
+                    elif risk_type == "🔢 Tam Sayılı Sayım":
+                        st.caption("Meyve/Sebze ve Et-Tavuk'ta sayım miktarı tam sayı olmamalı (gramaj, paket, kıyma, kuşbaşı hariç)")
+
+                        # Session state cache
+                        period_key = tuple(selected_periods)
+                        if st.session_state.get("tam_sayili_period_key") != period_key:
+                            st.session_state["tam_sayili_period_key"] = period_key
+                            st.session_state["tam_sayili_urunler"] = None
+
+                        if st.button("🔢 Tam Sayılı Sayım Hesapla", key="btn_tam_sayili"):
+                            with st.spinner("Hesaplanıyor..."):
+                                st.session_state["tam_sayili_urunler"] = find_tam_sayili_sayim(gm_df)
+
+                        tam_sayili_urunler = st.session_state.get("tam_sayili_urunler")
+
+                        if tam_sayili_urunler is None:
+                            st.info("🔢 Tam Sayılı Sayım hesaplamak için butona tıklayın.")
+                        elif view_type == "👔 SM":
+                            if tam_sayili_urunler:
+                                sm_tam = {}
+                                for u in tam_sayili_urunler:
+                                    sm = u['sm']
+                                    if sm not in sm_tam:
+                                        sm_tam[sm] = {'urunler': [], 'magazalar': set(), 'buyuk_risk': 0}
+                                    sm_tam[sm]['urunler'].append(u)
+                                    sm_tam[sm]['magazalar'].add(u['magaza_kodu'])
+                                    if u['risk'] == 'BÜYÜK RİSK':
+                                        sm_tam[sm]['buyuk_risk'] += 1
+
+                                sm_sorted = sorted(sm_tam.items(), key=lambda x: x[1]['buyuk_risk'], reverse=True)
+                                st.error(f"🔢 {len(sm_sorted)} SM'de tam sayılı sayım tespit edildi")
+
+                                for sm_adi, data in sm_sorted:
+                                    renk = "🔴" if data['buyuk_risk'] > 0 else "🟠"
+                                    with st.expander(f"{renk} **{sm_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza | 🔴 {data['buyuk_risk']} büyük risk"):
+                                        for urun in sorted(data['urunler'], key=lambda x: (x['risk'] != 'BÜYÜK RİSK', -abs(x['fark_tutari'])))[:20]:
+                                            risk_renk = "🔴" if urun['risk'] == 'BÜYÜK RİSK' else "🟠"
+                                            seri = get_envanter_serisi(urun['magaza_kodu'], urun['malzeme_kodu'])
+                                            seri_str = " → ".join([f"{s['envanter']}.:{s['kumulatif']:.0f}" for s in seri]) if seri else "Seri yok"
+                                            st.write(f"{risk_renk} **{urun['magaza_kodu']}** {urun['magaza_adi']} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.markdown(f"  📊 Sayım: **{urun['sayim']:.0f}** | Seri: {seri_str} | Fark: :red[**₺{urun['fark_tutari']:,.0f}**]")
+                            else:
+                                st.success("🟢 Tam sayılı sayım bulunamadı!")
+
+                        elif view_type == "📋 BS":
+                            if tam_sayili_urunler:
+                                bs_tam = {}
+                                for u in tam_sayili_urunler:
+                                    bs = u['bs']
+                                    if bs not in bs_tam:
+                                        bs_tam[bs] = {'urunler': [], 'magazalar': set(), 'buyuk_risk': 0}
+                                    bs_tam[bs]['urunler'].append(u)
+                                    bs_tam[bs]['magazalar'].add(u['magaza_kodu'])
+                                    if u['risk'] == 'BÜYÜK RİSK':
+                                        bs_tam[bs]['buyuk_risk'] += 1
+
+                                bs_sorted = sorted(bs_tam.items(), key=lambda x: x[1]['buyuk_risk'], reverse=True)
+                                st.error(f"🔢 {len(bs_sorted)} BS'de tam sayılı sayım tespit edildi")
+
+                                for bs_adi, data in bs_sorted:
+                                    renk = "🔴" if data['buyuk_risk'] > 0 else "🟠"
+                                    with st.expander(f"{renk} **{bs_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza | 🔴 {data['buyuk_risk']} büyük risk"):
+                                        for urun in sorted(data['urunler'], key=lambda x: (x['risk'] != 'BÜYÜK RİSK', -abs(x['fark_tutari'])))[:20]:
+                                            risk_renk = "🔴" if urun['risk'] == 'BÜYÜK RİSK' else "🟠"
+                                            seri = get_envanter_serisi(urun['magaza_kodu'], urun['malzeme_kodu'])
+                                            seri_str = " → ".join([f"{s['envanter']}.:{s['kumulatif']:.0f}" for s in seri]) if seri else "Seri yok"
+                                            st.write(f"{risk_renk} **{urun['magaza_kodu']}** {urun['magaza_adi']} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.markdown(f"  📊 Sayım: **{urun['sayim']:.0f}** | Seri: {seri_str} | Fark: :red[**₺{urun['fark_tutari']:,.0f}**]")
+                            else:
+                                st.success("🟢 Tam sayılı sayım bulunamadı!")
+
+                        elif view_type == "🏪 Mağaza":
+                            if tam_sayili_urunler:
+                                mag_tam = {}
+                                for u in tam_sayili_urunler:
+                                    mag = u['magaza_kodu']
+                                    if mag not in mag_tam:
+                                        mag_tam[mag] = {'adi': u['magaza_adi'], 'sm': u['sm'], 'bs': u['bs'], 'urunler': [], 'buyuk_risk': 0}
+                                    mag_tam[mag]['urunler'].append(u)
+                                    if u['risk'] == 'BÜYÜK RİSK':
+                                        mag_tam[mag]['buyuk_risk'] += 1
+
+                                mag_sorted = sorted(mag_tam.items(), key=lambda x: x[1]['buyuk_risk'], reverse=True)
+                                st.error(f"🔢 {len(mag_sorted)} mağazada tam sayılı sayım tespit edildi")
+
+                                for mag_kodu, data in mag_sorted[:30]:
+                                    renk = "🔴" if data['buyuk_risk'] > 0 else "🟠"
+                                    with st.expander(f"{renk} **{mag_kodu}** {data['adi']} | {len(data['urunler'])} ürün | 🔴 {data['buyuk_risk']} büyük risk"):
+                                        for urun in sorted(data['urunler'], key=lambda x: (x['risk'] != 'BÜYÜK RİSK', -abs(x['fark_tutari'])))[:15]:
+                                            risk_renk = "🔴" if urun['risk'] == 'BÜYÜK RİSK' else "🟠"
+                                            seri = get_envanter_serisi(urun['magaza_kodu'], urun['malzeme_kodu'])
+                                            seri_str = " → ".join([f"{s['envanter']}.:{s['kumulatif']:.0f}" for s in seri]) if seri else "Seri yok"
+                                            st.write(f"{risk_renk} **{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
+                                            st.markdown(f"  📊 Sayım: **{urun['sayim']:.0f}** | Seri: {seri_str} | Fark: :red[**₺{urun['fark_tutari']:,.0f}**]")
+                                if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
+                            else:
+                                st.success("🟢 Tam sayılı sayım bulunamadı!")
+
+                    # ==================== AYNI SAYIM ====================
+                    elif risk_type == "🔄 Aynı Sayım":
+                        st.caption("Ardışık 2+ sayımda aynı miktar = kafadan sayım şüphesi")
+
+                        # Session state cache
+                        period_key = tuple(selected_periods)
+                        if st.session_state.get("ayni_sayim_period_key") != period_key:
+                            st.session_state["ayni_sayim_period_key"] = period_key
+                            st.session_state["ayni_sayim_urunler"] = None
+
+                        if st.button("🔄 Aynı Sayım Hesapla", key="btn_ayni_sayim"):
+                            with st.spinner("Hesaplanıyor..."):
+                                st.session_state["ayni_sayim_urunler"] = find_ayni_sayim(gm_df)
+
+                        ayni_sayim_urunler = st.session_state.get("ayni_sayim_urunler")
+
+                        if ayni_sayim_urunler is None:
+                            st.info("🔄 Aynı Sayım hesaplamak için butona tıklayın.")
+                        elif view_type == "👔 SM":
+                            if ayni_sayim_urunler:
+                                sm_ayni = {}
+                                for u in ayni_sayim_urunler:
+                                    sm = u['sm']
+                                    if sm not in sm_ayni:
+                                        sm_ayni[sm] = {'urunler': [], 'magazalar': set(), 'buyuk_risk': 0}
+                                    sm_ayni[sm]['urunler'].append(u)
+                                    sm_ayni[sm]['magazalar'].add(u['magaza_kodu'])
+                                    if u['risk'] == 'BÜYÜK RİSK':
+                                        sm_ayni[sm]['buyuk_risk'] += 1
+
+                                sm_sorted = sorted(sm_ayni.items(), key=lambda x: x[1]['buyuk_risk'], reverse=True)
+                                st.error(f"🔄 {len(sm_sorted)} SM'de aynı sayım tespit edildi")
+
+                                for sm_adi, data in sm_sorted:
+                                    renk = "🔴" if data['buyuk_risk'] > 0 else "🟠"
+                                    with st.expander(f"{renk} **{sm_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza | 🔴 {data['buyuk_risk']} büyük risk"):
+                                        for urun in sorted(data['urunler'], key=lambda x: (x['risk'] != 'BÜYÜK RİSK', -x['ayni_count']))[:20]:
+                                            risk_renk = "🔴" if urun['risk'] == 'BÜYÜK RİSK' else "🟠"
+                                            st.write(f"{risk_renk} **{urun['magaza_kodu']}** {urun['magaza_adi']} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.markdown(f"  📊 Seri: {urun['seri']} | ⚠️ {urun['ayni_count']} ardışık aynı | Fark: :red[**₺{urun['fark_tutari']:,.0f}**]")
+                            else:
+                                st.success("🟢 Aynı sayım bulunamadı!")
+
+                        elif view_type == "📋 BS":
+                            if ayni_sayim_urunler:
+                                bs_ayni = {}
+                                for u in ayni_sayim_urunler:
+                                    bs = u['bs']
+                                    if bs not in bs_ayni:
+                                        bs_ayni[bs] = {'urunler': [], 'magazalar': set(), 'buyuk_risk': 0}
+                                    bs_ayni[bs]['urunler'].append(u)
+                                    bs_ayni[bs]['magazalar'].add(u['magaza_kodu'])
+                                    if u['risk'] == 'BÜYÜK RİSK':
+                                        bs_ayni[bs]['buyuk_risk'] += 1
+
+                                bs_sorted = sorted(bs_ayni.items(), key=lambda x: x[1]['buyuk_risk'], reverse=True)
+                                st.error(f"🔄 {len(bs_sorted)} BS'de aynı sayım tespit edildi")
+
+                                for bs_adi, data in bs_sorted:
+                                    renk = "🔴" if data['buyuk_risk'] > 0 else "🟠"
+                                    with st.expander(f"{renk} **{bs_adi}** | {len(data['urunler'])} ürün | {len(data['magazalar'])} mağaza | 🔴 {data['buyuk_risk']} büyük risk"):
+                                        for urun in sorted(data['urunler'], key=lambda x: (x['risk'] != 'BÜYÜK RİSK', -x['ayni_count']))[:20]:
+                                            risk_renk = "🔴" if urun['risk'] == 'BÜYÜK RİSK' else "🟠"
+                                            st.write(f"{risk_renk} **{urun['magaza_kodu']}** {urun['magaza_adi']} | {urun['malzeme_kodu']} - {urun['malzeme_adi']}")
+                                            st.markdown(f"  📊 Seri: {urun['seri']} | ⚠️ {urun['ayni_count']} ardışık aynı | Fark: :red[**₺{urun['fark_tutari']:,.0f}**]")
+                            else:
+                                st.success("🟢 Aynı sayım bulunamadı!")
+
+                        elif view_type == "🏪 Mağaza":
+                            if ayni_sayim_urunler:
+                                mag_ayni = {}
+                                for u in ayni_sayim_urunler:
+                                    mag = u['magaza_kodu']
+                                    if mag not in mag_ayni:
+                                        mag_ayni[mag] = {'adi': u['magaza_adi'], 'sm': u['sm'], 'bs': u['bs'], 'urunler': [], 'buyuk_risk': 0}
+                                    mag_ayni[mag]['urunler'].append(u)
+                                    if u['risk'] == 'BÜYÜK RİSK':
+                                        mag_ayni[mag]['buyuk_risk'] += 1
+
+                                mag_sorted = sorted(mag_ayni.items(), key=lambda x: x[1]['buyuk_risk'], reverse=True)
+                                st.error(f"🔄 {len(mag_sorted)} mağazada aynı sayım tespit edildi")
+
+                                for mag_kodu, data in mag_sorted[:30]:
+                                    renk = "🔴" if data['buyuk_risk'] > 0 else "🟠"
+                                    with st.expander(f"{renk} **{mag_kodu}** {data['adi']} | {len(data['urunler'])} ürün | 🔴 {data['buyuk_risk']} büyük risk"):
+                                        for urun in sorted(data['urunler'], key=lambda x: (x['risk'] != 'BÜYÜK RİSK', -x['ayni_count']))[:15]:
+                                            risk_renk = "🔴" if urun['risk'] == 'BÜYÜK RİSK' else "🟠"
+                                            st.write(f"{risk_renk} **{urun['malzeme_kodu']}** - {urun['malzeme_adi']}")
+                                            st.markdown(f"  📊 Seri: {urun['seri']} | ⚠️ {urun['ayni_count']} ardışık aynı | Fark: :red[**₺{urun['fark_tutari']:,.0f}**]")
+                                if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
+                            else:
+                                st.success("🟢 Aynı sayım bulunamadı!")
 
                 else:
                     st.info("📥 Veri bulunamadı")
