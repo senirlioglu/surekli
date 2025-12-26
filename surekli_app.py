@@ -1987,7 +1987,8 @@ def main_app():
                         risk_type = st.selectbox("📊 Risk Tipi:", [
                             "📊 Açık Oranı", "🔓 İç Hırsızlık", "🔢 Yüksek Sayım",
                             "📉 Kronik Açık", "🔥 Kronik Fire",
-                            "🔢 Tam Sayılı Sayım", "🔄 Aynı Sayım"
+                            "🔢 Tam Sayılı Sayım", "🔄 Aynı Sayım",
+                            "📋 Sayım Disiplini"
                         ], key="risk_type_select")
                     with col_view:
                         view_type = st.selectbox("👁️ Görünüm:", ["👔 SM", "📋 BS", "🏪 Mağaza"], key="risk_view_select")
@@ -2678,6 +2679,384 @@ def main_app():
                                 if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
                             else:
                                 st.success("🟢 Aynı sayım bulunamadı!")
+
+                    # ==================== SAYIM DİSİPLİNİ ====================
+                    elif risk_type == "📋 Sayım Disiplini":
+                        st.caption("Sürekli envanter disiplini kontrolü - Meyve/Sebz, Et-Tavuk, Ekmek")
+
+                        # Ek selectbox'lar
+                        col_disiplin, col_hafta = st.columns([2, 1])
+                        with col_disiplin:
+                            disiplin_tipi = st.selectbox("📋 Disiplin Tipi:", [
+                                "1️⃣ Var/Yok",
+                                "2️⃣ Eksik Sayım",
+                                "3️⃣ Ürün - Sıfır",
+                                "4️⃣ Ürün Grubu - Sıfır"
+                            ], key="disiplin_type_select")
+                        with col_hafta:
+                            hafta = st.selectbox("📅 Hafta:", [1, 2, 3, 4], key="hafta_select")
+
+                        # Sürekli envanter ürünlerini filtrele (Meyve/Sebz, Et-Tavuk, Ekmek)
+                        surekli_kosullar = ['Meyve/Sebz', 'Et-Tavuk', 'Ekmek']
+                        if 'depolama_kosulu' in gm_df.columns:
+                            surekli_df = gm_df[gm_df['depolama_kosulu'].isin(surekli_kosullar)].copy()
+                        else:
+                            surekli_df = pd.DataFrame()
+                            st.warning("⚠️ 'depolama_kosulu' sütunu bulunamadı!")
+
+                        if len(surekli_df) > 0:
+                            st.info(f"📊 Sürekli envanter: {surekli_df['magaza_kodu'].nunique()} mağaza, {surekli_df['malzeme_kodu'].nunique()} ürün")
+
+                            # ==================== 1. VAR/YOK ====================
+                            if disiplin_tipi == "1️⃣ Var/Yok":
+                                st.markdown(f"**Kontrol:** Hafta {hafta} için en az 1 ürün bile sayım yapmış mı?")
+
+                                # Beklenen envanter sayısı = hafta numarası
+                                # Mağaza sayım yapmış = en az 1 üründe envanter_sayisi >= hafta
+
+                                # Tüm mağazalar
+                                tum_magazalar = set(gm_df['magaza_kodu'].unique())
+
+                                # Sayım yapan mağazalar (en az 1 üründe envanter_sayisi >= hafta)
+                                yapan_mask = surekli_df['envanter_sayisi'].fillna(0).astype(int) >= hafta
+                                yapan_magazalar = set(surekli_df[yapan_mask]['magaza_kodu'].unique())
+                                yapmayan_magazalar = tum_magazalar - yapan_magazalar
+
+                                if view_type == "👔 SM":
+                                    sm_disiplin = {}
+                                    for mag in tum_magazalar:
+                                        mag_df = gm_df[gm_df['magaza_kodu'] == mag]
+                                        if len(mag_df) > 0:
+                                            sm = mag_df['satis_muduru'].iloc[0] if 'satis_muduru' in mag_df.columns else 'Bilinmiyor'
+                                            if sm not in sm_disiplin:
+                                                sm_disiplin[sm] = {'toplam': 0, 'yapan': 0, 'yapmayan': [], 'yapmayan_detay': []}
+                                            sm_disiplin[sm]['toplam'] += 1
+                                            if mag in yapan_magazalar:
+                                                sm_disiplin[sm]['yapan'] += 1
+                                            else:
+                                                sm_disiplin[sm]['yapmayan'].append(mag)
+                                                mag_adi = mag_df['magaza_tanim'].iloc[0] if 'magaza_tanim' in mag_df.columns else ''
+                                                sm_disiplin[sm]['yapmayan_detay'].append({'kod': mag, 'adi': mag_adi})
+
+                                    # Yapmayana göre sırala
+                                    sm_sorted = sorted(sm_disiplin.items(), key=lambda x: len(x[1]['yapmayan']), reverse=True)
+
+                                    toplam_yapmayan = sum(len(d['yapmayan']) for _, d in sm_sorted)
+                                    if toplam_yapmayan > 0:
+                                        st.error(f"❌ {toplam_yapmayan} mağaza Hafta {hafta} için sayım yapmamış!")
+                                    else:
+                                        st.success(f"✅ Tüm mağazalar Hafta {hafta} için sayım yapmış!")
+
+                                    for sm_adi, data in sm_sorted:
+                                        yapmayan_sayisi = len(data['yapmayan'])
+                                        renk = "🔴" if yapmayan_sayisi > 0 else "🟢"
+                                        with st.expander(f"{renk} **{sm_adi}** | Toplam: {data['toplam']} | ✅ Yapan: {data['yapan']} | ❌ Yapmayan: {yapmayan_sayisi}"):
+                                            if yapmayan_sayisi > 0:
+                                                st.markdown("**❌ Sayım Yapmayan Mağazalar:**")
+                                                for m in data['yapmayan_detay']:
+                                                    st.write(f"  • {m['kod']} - {m['adi']}")
+                                            else:
+                                                st.success("Tüm mağazalar sayım yapmış!")
+
+                                elif view_type == "📋 BS":
+                                    bs_disiplin = {}
+                                    for mag in tum_magazalar:
+                                        mag_df = gm_df[gm_df['magaza_kodu'] == mag]
+                                        if len(mag_df) > 0:
+                                            bs = mag_df['bolge_sorumlusu'].iloc[0] if 'bolge_sorumlusu' in mag_df.columns else 'Bilinmiyor'
+                                            if pd.isna(bs) or bs == '':
+                                                bs = 'Bilinmiyor'
+                                            if bs not in bs_disiplin:
+                                                bs_disiplin[bs] = {'toplam': 0, 'yapan': 0, 'yapmayan': [], 'yapmayan_detay': []}
+                                            bs_disiplin[bs]['toplam'] += 1
+                                            if mag in yapan_magazalar:
+                                                bs_disiplin[bs]['yapan'] += 1
+                                            else:
+                                                bs_disiplin[bs]['yapmayan'].append(mag)
+                                                mag_adi = mag_df['magaza_tanim'].iloc[0] if 'magaza_tanim' in mag_df.columns else ''
+                                                bs_disiplin[bs]['yapmayan_detay'].append({'kod': mag, 'adi': mag_adi})
+
+                                    bs_sorted = sorted(bs_disiplin.items(), key=lambda x: len(x[1]['yapmayan']), reverse=True)
+
+                                    toplam_yapmayan = sum(len(d['yapmayan']) for _, d in bs_sorted)
+                                    if toplam_yapmayan > 0:
+                                        st.error(f"❌ {toplam_yapmayan} mağaza Hafta {hafta} için sayım yapmamış!")
+                                    else:
+                                        st.success(f"✅ Tüm mağazalar Hafta {hafta} için sayım yapmış!")
+
+                                    for bs_adi, data in bs_sorted:
+                                        yapmayan_sayisi = len(data['yapmayan'])
+                                        renk = "🔴" if yapmayan_sayisi > 0 else "🟢"
+                                        with st.expander(f"{renk} **{bs_adi}** | Toplam: {data['toplam']} | ✅ Yapan: {data['yapan']} | ❌ Yapmayan: {yapmayan_sayisi}"):
+                                            if yapmayan_sayisi > 0:
+                                                st.markdown("**❌ Sayım Yapmayan Mağazalar:**")
+                                                for m in data['yapmayan_detay']:
+                                                    st.write(f"  • {m['kod']} - {m['adi']}")
+                                            else:
+                                                st.success("Tüm mağazalar sayım yapmış!")
+
+                                elif view_type == "🏪 Mağaza":
+                                    st.markdown(f"**Hafta {hafta} için sayım durumu:**")
+
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.metric("✅ Yapan", len(yapan_magazalar))
+                                    with col2:
+                                        st.metric("❌ Yapmayan", len(yapmayan_magazalar))
+
+                                    if yapmayan_magazalar:
+                                        st.markdown("**❌ Sayım Yapmayan Mağazalar:**")
+                                        yapmayan_list = []
+                                        for mag in yapmayan_magazalar:
+                                            mag_df = gm_df[gm_df['magaza_kodu'] == mag]
+                                            if len(mag_df) > 0:
+                                                sm = mag_df['satis_muduru'].iloc[0] if 'satis_muduru' in mag_df.columns else ''
+                                                bs = mag_df['bolge_sorumlusu'].iloc[0] if 'bolge_sorumlusu' in mag_df.columns else ''
+                                                adi = mag_df['magaza_tanim'].iloc[0] if 'magaza_tanim' in mag_df.columns else ''
+                                                yapmayan_list.append({'kod': mag, 'adi': adi, 'sm': sm, 'bs': bs})
+
+                                        for m in sorted(yapmayan_list, key=lambda x: x['sm'])[:50]:
+                                            st.write(f"❌ **{m['kod']}** {m['adi']} | SM: {m['sm']} | BS: {m['bs']}")
+
+                                        if len(yapmayan_list) > 50:
+                                            st.caption(f"... ve {len(yapmayan_list) - 50} mağaza daha")
+                                    else:
+                                        st.success("🟢 Tüm mağazalar sayım yapmış!")
+
+                            # ==================== 2. EKSİK SAYIM ====================
+                            elif disiplin_tipi == "2️⃣ Eksik Sayım":
+                                st.markdown(f"**Kontrol:** Hafta {hafta} için beklenen envanter sayısı = {hafta}")
+                                st.caption("Sıfır: envanter_sayisi = 0 | Eksik: 0 < envanter_sayisi < beklenen")
+
+                                # Ürün bazlı analiz
+                                surekli_df['envanter_sayisi_int'] = surekli_df['envanter_sayisi'].fillna(0).astype(int)
+
+                                # Sıfır ve eksik ürünler
+                                sifir_mask = surekli_df['envanter_sayisi_int'] == 0
+                                eksik_mask = (surekli_df['envanter_sayisi_int'] > 0) & (surekli_df['envanter_sayisi_int'] < hafta)
+
+                                sifir_df = surekli_df[sifir_mask]
+                                eksik_df = surekli_df[eksik_mask]
+
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    st.metric("🔴 Sıfır Sayım", f"{len(sifir_df)} ürün")
+                                with col2:
+                                    st.metric("🟠 Eksik Sayım", f"{len(eksik_df)} ürün")
+                                with col3:
+                                    st.metric("✅ Tam Sayım", f"{len(surekli_df) - len(sifir_df) - len(eksik_df)} ürün")
+
+                                if view_type == "👔 SM":
+                                    sm_eksik = {}
+                                    for _, row in pd.concat([sifir_df, eksik_df]).iterrows():
+                                        sm = row.get('satis_muduru', 'Bilinmiyor')
+                                        if sm not in sm_eksik:
+                                            sm_eksik[sm] = {'sifir': [], 'eksik': []}
+                                        env_sayisi = int(row.get('envanter_sayisi', 0) or 0)
+                                        urun_bilgi = {
+                                            'magaza': row.get('magaza_kodu', ''),
+                                            'magaza_adi': str(row.get('magaza_tanim', ''))[:20],
+                                            'malzeme': row.get('malzeme_kodu', ''),
+                                            'malzeme_adi': str(row.get('malzeme_tanimi', ''))[:25],
+                                            'envanter': env_sayisi,
+                                            'beklenen': hafta,
+                                            'fark': float(row.get('fark_tutari', 0) or 0),
+                                            'fire': float(row.get('fire_tutari', 0) or 0)
+                                        }
+                                        if env_sayisi == 0:
+                                            sm_eksik[sm]['sifir'].append(urun_bilgi)
+                                        else:
+                                            sm_eksik[sm]['eksik'].append(urun_bilgi)
+
+                                    sm_sorted = sorted(sm_eksik.items(), key=lambda x: len(x[1]['sifir']) + len(x[1]['eksik']), reverse=True)
+
+                                    for sm_adi, data in sm_sorted:
+                                        sifir_count = len(data['sifir'])
+                                        eksik_count = len(data['eksik'])
+                                        if sifir_count + eksik_count == 0:
+                                            continue
+                                        renk = "🔴" if sifir_count > 0 else "🟠"
+                                        with st.expander(f"{renk} **{sm_adi}** | 🔴 Sıfır: {sifir_count} | 🟠 Eksik: {eksik_count}"):
+                                            if data['sifir']:
+                                                st.markdown("**🔴 Sıfır Sayım (envanter=0):**")
+                                                for u in data['sifir'][:15]:
+                                                    st.write(f"  🔴 {u['magaza']} {u['magaza_adi']} | {u['malzeme']} - {u['malzeme_adi']} | Fark: ₺{u['fark']:,.0f}")
+                                                if len(data['sifir']) > 15:
+                                                    st.caption(f"  ... ve {len(data['sifir']) - 15} ürün daha")
+                                            if data['eksik']:
+                                                st.markdown(f"**🟠 Eksik Sayım (beklenen: {hafta}):**")
+                                                for u in data['eksik'][:15]:
+                                                    st.write(f"  🟠 {u['magaza']} {u['magaza_adi']} | {u['malzeme']} - {u['malzeme_adi']} | Envanter: {u['envanter']}/{u['beklenen']}")
+                                                if len(data['eksik']) > 15:
+                                                    st.caption(f"  ... ve {len(data['eksik']) - 15} ürün daha")
+
+                                elif view_type == "📋 BS":
+                                    bs_eksik = {}
+                                    for _, row in pd.concat([sifir_df, eksik_df]).iterrows():
+                                        bs = row.get('bolge_sorumlusu', 'Bilinmiyor')
+                                        if pd.isna(bs) or bs == '':
+                                            bs = 'Bilinmiyor'
+                                        if bs not in bs_eksik:
+                                            bs_eksik[bs] = {'sifir': [], 'eksik': []}
+                                        env_sayisi = int(row.get('envanter_sayisi', 0) or 0)
+                                        urun_bilgi = {
+                                            'magaza': row.get('magaza_kodu', ''),
+                                            'magaza_adi': str(row.get('magaza_tanim', ''))[:20],
+                                            'malzeme': row.get('malzeme_kodu', ''),
+                                            'malzeme_adi': str(row.get('malzeme_tanimi', ''))[:25],
+                                            'envanter': env_sayisi,
+                                            'beklenen': hafta,
+                                            'fark': float(row.get('fark_tutari', 0) or 0)
+                                        }
+                                        if env_sayisi == 0:
+                                            bs_eksik[bs]['sifir'].append(urun_bilgi)
+                                        else:
+                                            bs_eksik[bs]['eksik'].append(urun_bilgi)
+
+                                    bs_sorted = sorted(bs_eksik.items(), key=lambda x: len(x[1]['sifir']) + len(x[1]['eksik']), reverse=True)
+
+                                    for bs_adi, data in bs_sorted:
+                                        sifir_count = len(data['sifir'])
+                                        eksik_count = len(data['eksik'])
+                                        if sifir_count + eksik_count == 0:
+                                            continue
+                                        renk = "🔴" if sifir_count > 0 else "🟠"
+                                        with st.expander(f"{renk} **{bs_adi}** | 🔴 Sıfır: {sifir_count} | 🟠 Eksik: {eksik_count}"):
+                                            if data['sifir']:
+                                                st.markdown("**🔴 Sıfır Sayım:**")
+                                                for u in data['sifir'][:15]:
+                                                    st.write(f"  🔴 {u['magaza']} {u['magaza_adi']} | {u['malzeme']} - {u['malzeme_adi']}")
+                                            if data['eksik']:
+                                                st.markdown(f"**🟠 Eksik Sayım (beklenen: {hafta}):**")
+                                                for u in data['eksik'][:15]:
+                                                    st.write(f"  🟠 {u['magaza']} {u['magaza_adi']} | {u['malzeme']} | Envanter: {u['envanter']}/{u['beklenen']}")
+
+                                elif view_type == "🏪 Mağaza":
+                                    mag_eksik = {}
+                                    for _, row in pd.concat([sifir_df, eksik_df]).iterrows():
+                                        mag = row.get('magaza_kodu', '')
+                                        if mag not in mag_eksik:
+                                            mag_eksik[mag] = {
+                                                'adi': str(row.get('magaza_tanim', ''))[:25],
+                                                'sm': row.get('satis_muduru', ''),
+                                                'sifir': [], 'eksik': []
+                                            }
+                                        env_sayisi = int(row.get('envanter_sayisi', 0) or 0)
+                                        urun_bilgi = {
+                                            'malzeme': row.get('malzeme_kodu', ''),
+                                            'malzeme_adi': str(row.get('malzeme_tanimi', ''))[:30],
+                                            'envanter': env_sayisi,
+                                            'beklenen': hafta,
+                                            'fark': float(row.get('fark_tutari', 0) or 0),
+                                            'fire': float(row.get('fire_tutari', 0) or 0)
+                                        }
+                                        if env_sayisi == 0:
+                                            mag_eksik[mag]['sifir'].append(urun_bilgi)
+                                        else:
+                                            mag_eksik[mag]['eksik'].append(urun_bilgi)
+
+                                    mag_sorted = sorted(mag_eksik.items(), key=lambda x: len(x[1]['sifir']), reverse=True)
+
+                                    for mag_kodu, data in mag_sorted[:30]:
+                                        sifir_count = len(data['sifir'])
+                                        eksik_count = len(data['eksik'])
+                                        if sifir_count + eksik_count == 0:
+                                            continue
+                                        renk = "🔴" if sifir_count > 0 else "🟠"
+                                        with st.expander(f"{renk} **{mag_kodu}** {data['adi']} | 🔴 Sıfır: {sifir_count} | 🟠 Eksik: {eksik_count}"):
+                                            if data['sifir']:
+                                                st.markdown("**🔴 Envanter Sayısı = 0 olan ürünler:**")
+                                                for u in data['sifir'][:20]:
+                                                    st.write(f"  🔴 {u['malzeme']} - {u['malzeme_adi']} | Fark: ₺{u['fark']:,.0f} | Fire: ₺{u['fire']:,.0f}")
+                                            if data['eksik']:
+                                                st.markdown(f"**🟠 Eksik Sayım (beklenen: {hafta}):**")
+                                                for u in data['eksik'][:20]:
+                                                    st.write(f"  🟠 {u['malzeme']} - {u['malzeme_adi']} | Envanter: {u['envanter']}/{u['beklenen']}")
+
+                            # ==================== 3. ÜRÜN - SIFIR ====================
+                            elif disiplin_tipi == "3️⃣ Ürün - Sıfır":
+                                st.markdown("**Kontrol:** Hangi ürünler hiç sayılmamış (envanter_sayisi = 0)?")
+
+                                # Ürün bazlı sıfır envanter analizi
+                                surekli_df['envanter_sayisi_int'] = surekli_df['envanter_sayisi'].fillna(0).astype(int)
+                                sifir_df = surekli_df[surekli_df['envanter_sayisi_int'] == 0]
+
+                                if len(sifir_df) > 0:
+                                    # Ürün bazlı grupla
+                                    urun_sifir = sifir_df.groupby(['malzeme_kodu', 'malzeme_tanimi']).agg({
+                                        'magaza_kodu': 'nunique',
+                                        'fark_tutari': 'sum',
+                                        'fire_tutari': 'sum'
+                                    }).reset_index()
+                                    urun_sifir.columns = ['malzeme_kodu', 'malzeme_adi', 'magaza_sayisi', 'fark', 'fire']
+                                    urun_sifir['toplam_acik'] = urun_sifir['fark'] + urun_sifir['fire']
+                                    urun_sifir = urun_sifir.sort_values('magaza_sayisi', ascending=False)
+
+                                    st.error(f"🔴 {len(urun_sifir)} üründe sıfır envanter tespit edildi!")
+
+                                    for _, urun in urun_sifir.head(50).iterrows():
+                                        with st.expander(f"🔴 **{urun['malzeme_kodu']}** - {str(urun['malzeme_adi'])[:35]} | {urun['magaza_sayisi']} mağazada sıfır | Açık: ₺{urun['toplam_acik']:,.0f}"):
+                                            st.markdown(f"**Fark:** ₺{urun['fark']:,.0f} | **Fire:** ₺{urun['fire']:,.0f}")
+
+                                            # Bu ürün için sıfır olan mağazalar
+                                            urun_magazalar = sifir_df[sifir_df['malzeme_kodu'] == urun['malzeme_kodu']]
+                                            st.markdown("**Mağazalar:**")
+                                            for _, m in urun_magazalar.head(20).iterrows():
+                                                st.write(f"  • {m['magaza_kodu']} {str(m.get('magaza_tanim', ''))[:20]} | Fark: ₺{float(m.get('fark_tutari', 0) or 0):,.0f}")
+                                            if len(urun_magazalar) > 20:
+                                                st.caption(f"  ... ve {len(urun_magazalar) - 20} mağaza daha")
+
+                                    if len(urun_sifir) > 50:
+                                        st.caption(f"... ve {len(urun_sifir) - 50} ürün daha")
+                                else:
+                                    st.success("🟢 Tüm ürünlerde en az 1 sayım yapılmış!")
+
+                            # ==================== 4. ÜRÜN GRUBU - SIFIR ====================
+                            elif disiplin_tipi == "4️⃣ Ürün Grubu - Sıfır":
+                                st.markdown("**Kontrol:** Ürün grubuna göre sıfır envanter analizi")
+
+                                surekli_df['envanter_sayisi_int'] = surekli_df['envanter_sayisi'].fillna(0).astype(int)
+                                sifir_df = surekli_df[surekli_df['envanter_sayisi_int'] == 0]
+
+                                # Depolama koşuluna göre grupla
+                                for kosul in surekli_kosullar:
+                                    kosul_df = sifir_df[sifir_df['depolama_kosulu'] == kosul]
+                                    kosul_toplam = surekli_df[surekli_df['depolama_kosulu'] == kosul]
+
+                                    if len(kosul_toplam) == 0:
+                                        continue
+
+                                    magaza_sayisi = kosul_df['magaza_kodu'].nunique()
+                                    urun_sayisi = kosul_df['malzeme_kodu'].nunique()
+                                    toplam_fark = kosul_df['fark_tutari'].sum()
+                                    toplam_fire = kosul_df['fire_tutari'].sum()
+
+                                    renk = "🔴" if urun_sayisi > 0 else "🟢"
+                                    with st.expander(f"{renk} **{kosul}** | {magaza_sayisi} mğz | {urun_sayisi} üründe sıfır | Açık: ₺{toplam_fark + toplam_fire:,.0f}"):
+                                        if urun_sayisi > 0:
+                                            # Ürün listesi
+                                            urun_grup = kosul_df.groupby(['malzeme_kodu', 'malzeme_tanimi']).agg({
+                                                'magaza_kodu': 'nunique',
+                                                'fark_tutari': 'sum',
+                                                'fire_tutari': 'sum'
+                                            }).reset_index()
+                                            urun_grup.columns = ['malzeme_kodu', 'malzeme_adi', 'magaza_sayisi', 'fark', 'fire']
+                                            urun_grup = urun_grup.sort_values('magaza_sayisi', ascending=False)
+
+                                            for _, u in urun_grup.head(20).iterrows():
+                                                with st.expander(f"  📦 {u['malzeme_kodu']} - {str(u['malzeme_adi'])[:30]} | {u['magaza_sayisi']} mğz | ₺{u['fark'] + u['fire']:,.0f}"):
+                                                    # Mağaza listesi
+                                                    urun_mag = kosul_df[kosul_df['malzeme_kodu'] == u['malzeme_kodu']]
+                                                    for _, m in urun_mag.head(15).iterrows():
+                                                        st.write(f"    • {m['magaza_kodu']} {str(m.get('magaza_tanim', ''))[:18]} | Fark: ₺{float(m.get('fark_tutari', 0) or 0):,.0f} | Fire: ₺{float(m.get('fire_tutari', 0) or 0):,.0f}")
+
+                                            if len(urun_grup) > 20:
+                                                st.caption(f"  ... ve {len(urun_grup) - 20} ürün daha")
+                                        else:
+                                            st.success("Tüm ürünlerde sayım var!")
+
+                        else:
+                            st.warning("⚠️ Sürekli envanter verisi bulunamadı!")
 
                 else:
                     st.info("📥 Veri bulunamadı")
