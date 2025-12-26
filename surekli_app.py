@@ -1215,40 +1215,51 @@ def main_app():
                 st.subheader("👔 Satış Müdürü Bazlı Özet")
 
                 if gm_df is not None and len(gm_df) > 0 and 'satis_muduru' in gm_df.columns:
-                    # SM bazlı grupla
-                    sm_ozet = gm_df.groupby('satis_muduru').agg({
-                        'magaza_kodu': 'nunique',
-                        'fark_tutari': 'sum',
-                        'fire_tutari': 'sum',
-                        'satis_hasilati': 'sum'
-                    }).reset_index()
-                    sm_ozet.columns = ['Satış Müdürü', 'Mağaza', 'Fark', 'Fire', 'Satış']
-                    sm_ozet['Açık'] = sm_ozet['Fark'] + sm_ozet['Fire']
-                    sm_ozet['Açık%'] = (sm_ozet['Açık'] / sm_ozet['Satış'] * 100).round(2)
-                    sm_ozet = sm_ozet.sort_values('Açık', ascending=True)
-
-                    # SM + Kategori bazlı açık oranları hesapla
-                    sm_kat_oranlar = {}
-                    if 'depolama_kosulu' in gm_df.columns:
-                        sm_kat_df = gm_df.groupby(['satis_muduru', 'depolama_kosulu']).agg({
-                            'fark_tutari': 'sum', 'fire_tutari': 'sum', 'satis_hasilati': 'sum'
+                    # SM özet cache kontrolü
+                    if st.session_state.get("sm_ozet_cache_key") != period_key:
+                        # SM bazlı grupla (1 kez)
+                        sm_ozet = gm_df.groupby('satis_muduru').agg({
+                            'magaza_kodu': 'nunique',
+                            'fark_tutari': 'sum',
+                            'fire_tutari': 'sum',
+                            'satis_hasilati': 'sum'
                         }).reset_index()
+                        sm_ozet.columns = ['Satış Müdürü', 'Mağaza', 'Fark', 'Fire', 'Satış']
+                        sm_ozet['Açık'] = sm_ozet['Fark'] + sm_ozet['Fire']
+                        sm_ozet['Açık%'] = (sm_ozet['Açık'] / sm_ozet['Satış'] * 100).round(2)
+                        sm_ozet = sm_ozet.sort_values('Açık', ascending=True)
 
-                        for _, r in sm_kat_df.iterrows():
-                            sm = r['satis_muduru']
-                            k = str(r['depolama_kosulu'] or '').upper()
-                            s = r['satis_hasilati']
-                            acik = r['fark_tutari'] + r['fire_tutari']
-                            oran = (acik / s * 100) if s else 0
+                        # SM + Kategori bazlı açık oranları hesapla
+                        sm_kat_oranlar = {}
+                        if 'depolama_kosulu' in gm_df.columns:
+                            sm_kat_df = gm_df.groupby(['satis_muduru', 'depolama_kosulu']).agg({
+                                'fark_tutari': 'sum', 'fire_tutari': 'sum', 'satis_hasilati': 'sum'
+                            }).reset_index()
 
-                            if 'ET' in k or 'TAVUK' in k: e = '🐓'
-                            elif 'MEYVE' in k or 'SEBZE' in k: e = '🥦'
-                            elif 'EKMEK' in k: e = '🥖'
-                            else: continue
+                            for _, r in sm_kat_df.iterrows():
+                                sm = r['satis_muduru']
+                                k = str(r['depolama_kosulu'] or '').upper()
+                                s = r['satis_hasilati']
+                                acik = r['fark_tutari'] + r['fire_tutari']
+                                oran = (acik / s * 100) if s else 0
 
-                            if sm not in sm_kat_oranlar:
-                                sm_kat_oranlar[sm] = {}
-                            sm_kat_oranlar[sm][e] = oran
+                                if 'ET' in k or 'TAVUK' in k: e = '🐓'
+                                elif 'MEYVE' in k or 'SEBZE' in k: e = '🥦'
+                                elif 'EKMEK' in k: e = '🥖'
+                                else: continue
+
+                                if sm not in sm_kat_oranlar:
+                                    sm_kat_oranlar[sm] = {}
+                                sm_kat_oranlar[sm][e] = oran
+
+                        # Cache'e kaydet
+                        st.session_state["sm_ozet_cache_key"] = period_key
+                        st.session_state["sm_ozet_df"] = sm_ozet
+                        st.session_state["sm_kat_oranlar"] = sm_kat_oranlar
+
+                    # Cache'den oku
+                    sm_ozet = st.session_state.get("sm_ozet_df")
+                    sm_kat_oranlar = st.session_state.get("sm_kat_oranlar", {})
 
                     # Her kategori için en iyi/kötü bul
                     kat_worst = {}
@@ -1256,8 +1267,8 @@ def main_app():
                     for e in ['🐓', '🥦', '🥖']:
                         vals = [(sm, sm_kat_oranlar[sm].get(e, 0)) for sm in sm_kat_oranlar if e in sm_kat_oranlar[sm]]
                         if vals:
-                            kat_worst[e] = min(vals, key=lambda x: x[1])[0]  # En negatif = en kötü
-                            kat_best[e] = max(vals, key=lambda x: x[1])[0]   # En az negatif = en iyi
+                            kat_worst[e] = min(vals, key=lambda x: x[1])[0]
+                            kat_best[e] = max(vals, key=lambda x: x[1])[0]
 
                     # Her SM için tıklanabilir expander (renkli kategori oranları başlıkta)
                     for _, row in sm_ozet.iterrows():
