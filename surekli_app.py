@@ -869,27 +869,56 @@ def prepare_ic_counts_vectorized(ic_df: pd.DataFrame) -> dict:
     İç hırsızlık şüpheli sayılarını VEKTÖREL hesapla.
     O(n*m) yerine O(n) - dramatik hız artışı.
 
+    Yeni Mantık:
+    - Filtre: iptal_satir_tutari <= -200 TL
+    - ÇOK BÜYÜK RİSK: fark - iptal = 0 (tam eşleşme)
+    - YÜKSEK RİSK: |iptal| fark'ın 0.5x-2x arası
+
     Returns:
         dict with 'by_magaza', 'by_sm', 'by_bs' Series (index=birim, value=count)
     """
     if ic_df is None or ic_df.empty:
-        return {'by_magaza': pd.Series(dtype=int), 'by_sm': pd.Series(dtype=int), 'by_bs': pd.Series(dtype=int)}
+        return {'by_magaza': pd.Series(dtype=int), 'by_sm': pd.Series(dtype=int), 'by_bs': pd.Series(dtype=int), 'supheli_df': pd.DataFrame()}
 
     # Gerekli kolonları numeric yap
     iptal = pd.to_numeric(ic_df.get('iptal_satir_miktari', 0), errors='coerce').fillna(0)
+    iptal_tutar = pd.to_numeric(ic_df.get('iptal_satir_tutari', 0), errors='coerce').fillna(0)
     fark = pd.to_numeric(ic_df.get('fark_miktari', 0), errors='coerce').fillna(0)
-    fiyat = pd.to_numeric(ic_df.get('satis_fiyati', 0), errors='coerce').fillna(0)
+
+    # Mutlak değerler (hesaplama için)
+    iptal_abs = iptal.abs()
+    fark_abs = fark.abs()
 
     # Şüpheli koşulları (vektörel)
-    # 1. fiyat >= 100
-    # 2. fark < 0 (kayıp)
-    # 3. iptal != 0 (iptal var - negatif veya pozitif olabilir)
-    # 4. abs(fark - iptal) <= 10
-    sonuc = (fark - iptal).abs()
-    supheli_mask = (fiyat >= 100) & (fark < 0) & (iptal != 0) & (sonuc <= 10)
+    # 1. iptal_satir_tutari <= -200 TL (negatif, yani -200, -300, -500 vb.)
+    # 2. fark < 0 (kayıp var)
+    # 3. iptal != 0 (iptal yapılmış)
+    # 4. Risk: fark-iptal=0 VEYA iptal 0.5x-2x fark arası
 
-    # Sadece şüphelileri al
-    supheli_df = ic_df[supheli_mask]
+    # ÇOK BÜYÜK RİSK: fark - iptal = 0
+    cok_buyuk_mask = (fark - iptal) == 0
+
+    # YÜKSEK RİSK: |iptal| fark'ın 0.5x ile 2x arası
+    # Örnek: fark=-2, iptal=-1 ise |iptal|=1, |fark|=2 → 1 >= 0.5*2 ve 1 <= 2*2 ✓
+    yuksek_mask = (iptal_abs >= 0.5 * fark_abs) & (iptal_abs <= 2 * fark_abs) & ~cok_buyuk_mask
+
+    # Ana filtre
+    base_mask = (iptal_tutar <= -200) & (fark < 0) & (iptal != 0)
+
+    # Tüm şüpheliler (ÇOK BÜYÜK veya YÜKSEK)
+    supheli_mask = base_mask & (cok_buyuk_mask | yuksek_mask)
+
+    # Sadece şüphelileri al ve risk seviyesi ekle
+    supheli_df = ic_df[supheli_mask].copy()
+    if len(supheli_df) > 0:
+        # Risk seviyesi hesapla
+        supheli_fark = pd.to_numeric(supheli_df['fark_miktari'], errors='coerce').fillna(0)
+        supheli_iptal = pd.to_numeric(supheli_df['iptal_satir_miktari'], errors='coerce').fillna(0)
+        supheli_df['_risk_seviye'] = np.where(
+            (supheli_fark - supheli_iptal) == 0,
+            'ÇOK BÜYÜK RİSK',
+            'YÜKSEK RİSK'
+        )
 
     # Groupby ile sayımlar (tek seferde)
     result = {
@@ -1843,15 +1872,15 @@ def main_app():
                             result = []
                             for _, r in filtered.head(20).iterrows():
                                 iptal = r.get('iptal_satir_miktari', 0) or 0
+                                iptal_tutar = r.get('iptal_satir_tutari', 0) or 0
                                 fark = r.get('fark_miktari', 0) or 0
-                                fiyat = r.get('satis_fiyati', 0) or 0
-                                sonuc = abs(fark - iptal)
-                                risk_str = 'ÇOK YÜKSEK' if sonuc <= 2 else 'YÜKSEK' if sonuc <= 5 else 'ORTA'
+                                # Risk seviyesi zaten hesaplanmış
+                                risk_str = r.get('_risk_seviye', 'YÜKSEK RİSK')
                                 result.append({
                                     'malzeme_kodu': r.get('malzeme_kodu', ''),
                                     'malzeme_tanimi': str(r.get('malzeme_tanimi', ''))[:35],
                                     'magaza_kodu': r.get('magaza_kodu', ''),
-                                    'satis_fiyati': fiyat,
+                                    'iptal_tutari': iptal_tutar,
                                     'iptal_miktari': iptal,
                                     'fark_miktari': fark,
                                     'risk': risk_str,
@@ -2011,7 +2040,7 @@ def main_app():
 
                     # ==================== İÇ HIRSIZLIK SEKMESİ ====================
                     elif risk_type == "🔓 İç Hırsızlık":
-                        st.caption("Formül: fark - iptal = 0 → ÇOK YÜKSEK | Sadece fark < 0 ve fiyat ≥ 100 TL ürünler")
+                        st.caption("Filtre: İptal Tutarı ≤ -200₺ | 🔴 ÇOK BÜYÜK: fark-iptal=0 | 🟠 YÜKSEK: iptal 0.5x-2x fark arası")
 
                         if view_type == "👔 SM":
                             ic_sm = [s for s in sm_riskler if s['ic_sayisi'] > 0]
@@ -2026,9 +2055,9 @@ def main_app():
                                         with c3: st.metric("Toplam Risk", sm['Puan'])
                                         if sm.get('ic_urunler'):
                                             for urun in sm.get('ic_urunler', [])[:15]:
-                                                renk = "🔴" if urun['risk'] == 'ÇOK YÜKSEK' else "🟠" if urun['risk'] == 'YÜKSEK' else "🟡"
+                                                renk = "🔴" if 'ÇOK BÜYÜK' in urun['risk'] else "🟠"
                                                 st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | Mğz: {urun['magaza_kodu']}")
-                                                st.caption(f"  ₺{urun['satis_fiyati']:.0f} | İptal: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']}")
+                                                st.caption(f"  İptal Tutarı: ₺{urun['iptal_tutari']:.0f} | İptal Mik: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']} | {urun['risk']}")
                             else:
                                 st.success("🟢 İç hırsızlık şüphesi olan SM bulunamadı!")
 
@@ -2045,9 +2074,9 @@ def main_app():
                                         with c3: st.metric("Toplam Risk", bs['Puan'])
                                         if bs.get('ic_urunler'):
                                             for urun in bs.get('ic_urunler', [])[:15]:
-                                                renk = "🔴" if urun['risk'] == 'ÇOK YÜKSEK' else "🟠" if urun['risk'] == 'YÜKSEK' else "🟡"
+                                                renk = "🔴" if 'ÇOK BÜYÜK' in urun['risk'] else "🟠"
                                                 st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | Mğz: {urun['magaza_kodu']}")
-                                                st.caption(f"  ₺{urun['satis_fiyati']:.0f} | İptal: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']}")
+                                                st.caption(f"  İptal Tutarı: ₺{urun['iptal_tutari']:.0f} | İptal Mik: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']} | {urun['risk']}")
                             else:
                                 st.success("🟢 İç hırsızlık şüphesi olan BS bulunamadı!")
 
@@ -2068,9 +2097,9 @@ def main_app():
                                             iptal_data = get_iptal_timestamps_for_magaza(mag['Kod'], malzeme_kodlari)
                                             for urun in mag.get('ic_urunler', [])[:15]:
                                                 kamera = get_kamera_bilgisi(str(urun['malzeme_kodu']), iptal_data, 15, urun.get('yukleme_tarihi'))
-                                                renk = "🔴" if urun['risk'] == 'ÇOK YÜKSEK' else "🟠" if urun['risk'] == 'YÜKSEK' else "🟡"
-                                                st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]}")
-                                                st.caption(f"  ₺{urun['satis_fiyati']:.0f} | İptal: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']} | {kamera['detay']}")
+                                                renk = "🔴" if 'ÇOK BÜYÜK' in urun['risk'] else "🟠"
+                                                st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | {urun['risk']}")
+                                                st.caption(f"  İptal Tutarı: ₺{urun['iptal_tutari']:.0f} | İptal Mik: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']} | {kamera['detay']}")
                                 if len(ic_mag_sorted) > 30: st.caption(f"... ve {len(ic_mag_sorted) - 30} mağaza daha")
                             else:
                                 st.success("🟢 İç hırsızlık şüphesi olan mağaza bulunamadı!")

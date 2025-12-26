@@ -143,7 +143,7 @@ def fetch_ic_hirsizlik_data(donemler: List[str]) -> List[dict]:
     """
     İç hırsızlık analizi için veri çek - PURE DATA döner.
     """
-    columns = 'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,malzeme_kodu,malzeme_tanimi,iptal_satir_miktari,fark_miktari,satis_fiyati,fark_tutari,yukleme_tarihi'
+    columns = 'magaza_kodu,magaza_tanim,satis_muduru,bolge_sorumlusu,malzeme_kodu,malzeme_tanimi,iptal_satir_miktari,iptal_satir_tutari,fark_miktari,satis_fiyati,fark_tutari,yukleme_tarihi'
     return fetch_data_for_periods(donemler, columns=columns)
 
 
