@@ -1901,6 +1901,7 @@ def main_app():
                                 ic_sayisi = int(ic_by_sm.get(sm_name, 0))  # Hızlı lookup
                                 risk = hesapla_birim_risk_v2({'acik': sm_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
                                 ic_urunler = get_ic_urunler(supheli_df, 'satis_muduru', sm_name) if ic_sayisi > 0 else []
+                                cok_buyuk_sayisi = sum(1 for u in ic_urunler if 'ÇOK BÜYÜK' in u.get('risk', ''))
                                 sm_riskler.append({
                                     'SM': sm_name, 'Mağaza': row['magaza_kodu'],
                                     'Satış': row['satis_hasilati'], 'Açık': sm_acik,
@@ -1908,7 +1909,8 @@ def main_app():
                                     'Puan': risk['puan'], 'Seviye': risk['seviye'],
                                     'emoji': risk['emoji'], 'detay': risk['detay'],
                                     'ic_sayisi': ic_sayisi,
-                                    'ic_urunler': ic_urunler
+                                    'ic_urunler': ic_urunler,
+                                    'cok_buyuk_sayisi': cok_buyuk_sayisi
                                 })
 
                         # BS verileri
@@ -1926,6 +1928,7 @@ def main_app():
                                     ic_sayisi = int(ic_by_bs.get(bs_name, 0))  # Hızlı lookup
                                     risk = hesapla_birim_risk_v2({'acik': bs_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
                                     ic_urunler = get_ic_urunler(supheli_df, 'bolge_sorumlusu', bs_name) if ic_sayisi > 0 else []
+                                    cok_buyuk_sayisi = sum(1 for u in ic_urunler if 'ÇOK BÜYÜK' in u.get('risk', ''))
                                     bs_riskler.append({
                                         'BS': bs_name, 'Mağaza': row['magaza_kodu'],
                                         'Satış': row['satis_hasilati'], 'Açık': bs_acik,
@@ -1933,7 +1936,8 @@ def main_app():
                                         'Puan': risk['puan'], 'Seviye': risk['seviye'],
                                         'emoji': risk['emoji'], 'detay': risk['detay'],
                                         'ic_sayisi': ic_sayisi,
-                                        'ic_urunler': ic_urunler
+                                        'ic_urunler': ic_urunler,
+                                        'cok_buyuk_sayisi': cok_buyuk_sayisi
                                     })
 
                         # Mağaza verileri
@@ -1947,6 +1951,7 @@ def main_app():
                             ic_sayisi = int(ic_by_mag.get(mag_kodu, 0))  # Hızlı lookup
                             risk = hesapla_birim_risk_v2({'acik': mag_acik, 'satis': row['satis_hasilati']}, bolge_toplam_acik, bolge_toplam_satis, ic_sayisi)
                             ic_urunler = get_ic_urunler(supheli_df, 'magaza_kodu', mag_kodu) if ic_sayisi > 0 else []
+                            cok_buyuk_sayisi = sum(1 for u in ic_urunler if 'ÇOK BÜYÜK' in u.get('risk', ''))
                             mag_riskler.append({
                                 'Kod': mag_kodu, 'Mağaza': row['magaza_tanim'],
                                 'Satış': row['satis_hasilati'], 'Açık': mag_acik,
@@ -1954,7 +1959,8 @@ def main_app():
                                 'Puan': risk['puan'], 'Seviye': risk['seviye'],
                                 'emoji': risk['emoji'], 'detay': risk['detay'],
                                 'ic_sayisi': ic_sayisi,
-                                'ic_urunler': ic_urunler
+                                'ic_urunler': ic_urunler,
+                                'cok_buyuk_sayisi': cok_buyuk_sayisi
                             })
 
                         # Cache'e kaydet
@@ -2044,11 +2050,13 @@ def main_app():
 
                         if view_type == "👔 SM":
                             ic_sm = [s for s in sm_riskler if s['ic_sayisi'] > 0]
-                            ic_sm_sorted = sorted(ic_sm, key=lambda x: x['ic_sayisi'], reverse=True)
+                            # Önce ÇOK BÜYÜK sayısına, sonra toplam şüpheli sayısına göre sırala
+                            ic_sm_sorted = sorted(ic_sm, key=lambda x: (x.get('cok_buyuk_sayisi', 0), x['ic_sayisi']), reverse=True)
                             if ic_sm_sorted:
                                 st.error(f"🔓 {len(ic_sm_sorted)} SM'de iç hırsızlık şüphesi")
                                 for sm in ic_sm_sorted:
-                                    with st.expander(f"🔓 **{sm['SM']}** | {sm['ic_sayisi']} şüpheli ürün | {sm['Mağaza']} mağaza"):
+                                    cb_badge = f"🔴{sm.get('cok_buyuk_sayisi', 0)}" if sm.get('cok_buyuk_sayisi', 0) > 0 else ""
+                                    with st.expander(f"🔓 **{sm['SM']}** | {cb_badge} {sm['ic_sayisi']} şüpheli | {sm['Mağaza']} mğz"):
                                         c1, c2, c3 = st.columns(3)
                                         with c1: st.metric("Şüpheli Ürün", sm['ic_sayisi'])
                                         with c2: st.metric("İç Hırsızlık Puanı", sm['detay'].get('ic_hirsizlik', 0))
@@ -2063,11 +2071,13 @@ def main_app():
 
                         elif view_type == "📋 BS":
                             ic_bs = [b for b in bs_riskler if b['ic_sayisi'] > 0]
-                            ic_bs_sorted = sorted(ic_bs, key=lambda x: x['ic_sayisi'], reverse=True)
+                            # Önce ÇOK BÜYÜK sayısına, sonra toplam şüpheli sayısına göre sırala
+                            ic_bs_sorted = sorted(ic_bs, key=lambda x: (x.get('cok_buyuk_sayisi', 0), x['ic_sayisi']), reverse=True)
                             if ic_bs_sorted:
                                 st.error(f"🔓 {len(ic_bs_sorted)} BS'de iç hırsızlık şüphesi")
                                 for bs in ic_bs_sorted:
-                                    with st.expander(f"🔓 **{bs['BS']}** | {bs['ic_sayisi']} şüpheli ürün | {bs['Mağaza']} mağaza"):
+                                    cb_badge = f"🔴{bs.get('cok_buyuk_sayisi', 0)}" if bs.get('cok_buyuk_sayisi', 0) > 0 else ""
+                                    with st.expander(f"🔓 **{bs['BS']}** | {cb_badge} {bs['ic_sayisi']} şüpheli | {bs['Mağaza']} mğz"):
                                         c1, c2, c3 = st.columns(3)
                                         with c1: st.metric("Şüpheli Ürün", bs['ic_sayisi'])
                                         with c2: st.metric("İç Hırsızlık Puanı", bs['detay'].get('ic_hirsizlik', 0))
@@ -2082,11 +2092,13 @@ def main_app():
 
                         elif view_type == "🏪 Mağaza":
                             ic_mag = [m for m in mag_riskler if m['ic_sayisi'] > 0]
-                            ic_mag_sorted = sorted(ic_mag, key=lambda x: x['ic_sayisi'], reverse=True)
+                            # Önce ÇOK BÜYÜK sayısına, sonra toplam şüpheli sayısına göre sırala
+                            ic_mag_sorted = sorted(ic_mag, key=lambda x: (x.get('cok_buyuk_sayisi', 0), x['ic_sayisi']), reverse=True)
                             if ic_mag_sorted:
                                 st.error(f"🔓 {len(ic_mag_sorted)} mağazada iç hırsızlık şüphesi")
                                 for mag in ic_mag_sorted[:30]:
-                                    with st.expander(f"🔓 **{mag['Kod']}** {mag['Mağaza']} | {mag['ic_sayisi']} şüpheli ürün"):
+                                    cb_badge = f"🔴{mag.get('cok_buyuk_sayisi', 0)}" if mag.get('cok_buyuk_sayisi', 0) > 0 else ""
+                                    with st.expander(f"🔓 **{mag['Kod']}** {mag['Mağaza']} | {cb_badge} {mag['ic_sayisi']} şüpheli"):
                                         c1, c2, c3 = st.columns(3)
                                         with c1: st.metric("Şüpheli Ürün", mag['ic_sayisi'])
                                         with c2: st.metric("İç Hırsızlık Puanı", mag['detay'].get('ic_hirsizlik', 0))
