@@ -163,7 +163,7 @@ def login():
         username = st.text_input("Kullanıcı Adı", key="login_user")
         password = st.text_input("Şifre", type="password", key="login_pass")
 
-        if st.button("Giriş", use_container_width=True):
+        if st.button("Giriş", width="stretch"):
             if username in USERS and USERS[username]["password"] == password:
                 st.session_state.logged_in = True
                 st.session_state.user = username
@@ -950,7 +950,7 @@ def main_app():
         analysis_mode = st.radio("📊 Analiz Modu", menu_options, label_visibility="collapsed")
 
         st.markdown("---")
-        if st.button("🚪 Çıkış", use_container_width=True):
+        if st.button("🚪 Çıkış", width="stretch"):
             st.session_state.logged_in = False
             st.session_state.user = None
             st.rerun()
@@ -1357,7 +1357,7 @@ def main_app():
                                     'fire_tutari': 'Fire',
                                     'satis_hasilati': 'Satış'
                                 })[['Kod', 'Mağaza', 'Satış', 'Fark', 'Fire', 'Açık']],
-                                use_container_width=True,
+                                width="stretch",
                                 hide_index=True
                             )
                 else:
@@ -1554,7 +1554,7 @@ def main_app():
 
                                         if kat_rows:
                                             kat_df = pd.DataFrame(kat_rows)
-                                            st.dataframe(kat_df, use_container_width=True, hide_index=True)
+                                            st.dataframe(kat_df, width="stretch", hide_index=True)
 
                                         # Her kategori için mini özet kutuları
                                         st.markdown("**📊 Kategori Oranları:**")
@@ -1603,7 +1603,7 @@ def main_app():
                             'satis_hasilati': 'Satış',
                             'Toplam Açık': 'Toplam Açık'
                         }),
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True
                     )
                 else:
@@ -2320,7 +2320,7 @@ def main_app():
 
                 # Önizleme
                 with st.expander("👁️ Veri Önizleme"):
-                    st.dataframe(df.head(20), use_container_width=True)
+                    st.dataframe(df.head(20), width="stretch")
 
                 # Gerekli sütunlar kontrolü
                 gerekli_sutunlar = ['Mağaza Kodu', 'Malzeme Kodu', 'Envanter Dönemi', 'Envanter Sayisi']
