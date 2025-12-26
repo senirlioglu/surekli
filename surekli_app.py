@@ -1880,6 +1880,7 @@ def main_app():
                                     'malzeme_kodu': r.get('malzeme_kodu', ''),
                                     'malzeme_tanimi': str(r.get('malzeme_tanimi', ''))[:35],
                                     'magaza_kodu': r.get('magaza_kodu', ''),
+                                    'magaza_adi': str(r.get('magaza_tanim', ''))[:25],
                                     'iptal_tutari': iptal_tutar,
                                     'iptal_miktari': iptal,
                                     'fark_miktari': fark,
@@ -2066,7 +2067,8 @@ def main_app():
                                             urunler_sorted = sorted(sm.get('ic_urunler', []), key=lambda u: (0 if 'ÇOK BÜYÜK' in u.get('risk', '') else 1))
                                             for urun in urunler_sorted[:15]:
                                                 renk = "🔴" if 'ÇOK BÜYÜK' in urun['risk'] else "🟠"
-                                                st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | Mğz: {urun['magaza_kodu']}")
+                                                mag_info = f"{urun['magaza_kodu']} {urun.get('magaza_adi', '')}"
+                                                st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | {mag_info}")
                                                 st.caption(f"  İptal Tutarı: ₺{urun['iptal_tutari']:.0f} | İptal Mik: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']} | {urun['risk']}")
                             else:
                                 st.success("🟢 İç hırsızlık şüphesi olan SM bulunamadı!")
@@ -2089,7 +2091,8 @@ def main_app():
                                             urunler_sorted = sorted(bs.get('ic_urunler', []), key=lambda u: (0 if 'ÇOK BÜYÜK' in u.get('risk', '') else 1))
                                             for urun in urunler_sorted[:15]:
                                                 renk = "🔴" if 'ÇOK BÜYÜK' in urun['risk'] else "🟠"
-                                                st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | Mğz: {urun['magaza_kodu']}")
+                                                mag_info = f"{urun['magaza_kodu']} {urun.get('magaza_adi', '')}"
+                                                st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | {mag_info}")
                                                 st.caption(f"  İptal Tutarı: ₺{urun['iptal_tutari']:.0f} | İptal Mik: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']} | {urun['risk']}")
                             else:
                                 st.success("🟢 İç hırsızlık şüphesi olan BS bulunamadı!")
