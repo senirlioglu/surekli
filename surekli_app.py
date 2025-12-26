@@ -518,12 +518,12 @@ def check_required_columns(df: pd.DataFrame, required: list) -> tuple:
 # ==================== KRONİK HESAPLAMA HELPER (VEKTÖREL + ÖN FİLTRELEME) ====================
 def _find_kronik_fast(gm_df: pd.DataFrame, value_col: str, threshold: float):
     """
-    Ardışık iki envanter sayımında (envanter_sayisi ardışık) value_col < threshold koşulunu sağlayan
+    Ardışık iki envanter sayımında (envanter_sayisi ardışık) DELTA value_col < threshold koşulunu sağlayan
     mağaza+ürünleri hızlı (vektörel) bulur.
-    value_col: 'fark_tutari' veya 'fire_tutari'
+    value_col: 'fark_tutari' veya 'fire_tutari' (kümülatif değerler)
     threshold: ör. -500
 
-    Optimizasyon: Önce threshold altındaki satırları filtrele, sonra sort/shift yap.
+    Optimizasyon: Önce delta hesapla, sonra threshold altındakileri filtrele.
     """
     need_cols = [
         'magaza_kodu', 'magaza_tanim',
@@ -539,27 +539,31 @@ def _find_kronik_fast(gm_df: pd.DataFrame, value_col: str, threshold: float):
     base = gm_df[need_cols].copy()
     base[value_col] = pd.to_numeric(base[value_col], errors='coerce').fillna(0)
     base['envanter_sayisi'] = pd.to_numeric(base['envanter_sayisi'], errors='coerce')
+    base = base[base['envanter_sayisi'].notna()].copy()
 
-    # ADIM 2: ÖN FİLTRELEME - Sadece eşik altındaki satırlar (10x-100x hızlanma)
-    df = base[(base[value_col] < threshold) & (base['envanter_sayisi'].notna())].copy()
-    if df.empty:
+    if base.empty:
         return []
 
-    # ADIM 3: Sort + Shift
-    df = df.sort_values(['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi'])
+    # ADIM 2: Sort ve DELTA hesapla (kümülatif -> delta)
+    base = base.sort_values(['magaza_kodu', 'malzeme_kodu', 'envanter_sayisi'])
 
-    g = df.groupby(['magaza_kodu', 'malzeme_kodu'], sort=False)
-    df['_prev_val'] = g[value_col].shift(1)
-    df['_prev_env'] = g['envanter_sayisi'].shift(1)
+    g = base.groupby(['magaza_kodu', 'malzeme_kodu'], sort=False)
+    base['_prev_kum'] = g[value_col].shift(1)  # Önceki kümülatif değer
+    base['_prev_env'] = g['envanter_sayisi'].shift(1)
 
-    # Ardışık envanter (n-1, n) + ikisi de eşikten kötü
+    # Delta = mevcut kümülatif - önceki kümülatif
+    base['_delta'] = base[value_col] - base['_prev_kum'].fillna(0)
+    base['_prev_delta'] = g['_delta'].shift(1)
+
+    # ADIM 3: Ardışık envanter + ikisi de delta eşikten kötü
     mask = (
-        (df['_prev_val'] < threshold) &
-        (df[value_col] < threshold) &
-        (df['envanter_sayisi'] == (df['_prev_env'] + 1))
+        base['_prev_delta'].notna() &
+        (base['_prev_delta'] < threshold) &
+        (base['_delta'] < threshold) &
+        (base['envanter_sayisi'] == (base['_prev_env'] + 1))
     )
 
-    hits = df[mask].copy()
+    hits = base[mask].copy()
     if hits.empty:
         return []
 
@@ -577,9 +581,9 @@ def _find_kronik_fast(gm_df: pd.DataFrame, value_col: str, threshold: float):
             'malzeme_adi': str(r.get('malzeme_tanimi') or '')[:40],
             'onceki_env': int(r['_prev_env']),
             'sonraki_env': int(r['envanter_sayisi']),
-            'onceki_val': float(r['_prev_val']),
-            'sonraki_val': float(r[value_col]),
-            'toplam': float(r['_prev_val'] + r[value_col]),
+            'onceki_val': float(r['_prev_delta']),  # Delta değeri
+            'sonraki_val': float(r['_delta']),       # Delta değeri
+            'toplam': float(r['_prev_delta'] + r['_delta']),
         })
     return out
 
