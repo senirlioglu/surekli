@@ -2055,14 +2055,16 @@ def main_app():
                             if ic_sm_sorted:
                                 st.error(f"🔓 {len(ic_sm_sorted)} SM'de iç hırsızlık şüphesi")
                                 for sm in ic_sm_sorted:
-                                    cb_badge = f"🔴{sm.get('cok_buyuk_sayisi', 0)}" if sm.get('cok_buyuk_sayisi', 0) > 0 else ""
-                                    with st.expander(f"🔓 **{sm['SM']}** | {cb_badge} {sm['ic_sayisi']} şüpheli | {sm['Mağaza']} mğz"):
+                                    cb_badge = f"🔴{sm.get('cok_buyuk_sayisi', 0)} Büyük / " if sm.get('cok_buyuk_sayisi', 0) > 0 else ""
+                                    with st.expander(f"🔓 **{sm['SM']}** | {cb_badge}{sm['ic_sayisi']} şüpheli | {sm['Mağaza']} mğz"):
                                         c1, c2, c3 = st.columns(3)
                                         with c1: st.metric("Şüpheli Ürün", sm['ic_sayisi'])
                                         with c2: st.metric("İç Hırsızlık Puanı", sm['detay'].get('ic_hirsizlik', 0))
                                         with c3: st.metric("Toplam Risk", sm['Puan'])
                                         if sm.get('ic_urunler'):
-                                            for urun in sm.get('ic_urunler', [])[:15]:
+                                            # ÇOK BÜYÜK RİSK olanları başa al
+                                            urunler_sorted = sorted(sm.get('ic_urunler', []), key=lambda u: (0 if 'ÇOK BÜYÜK' in u.get('risk', '') else 1))
+                                            for urun in urunler_sorted[:15]:
                                                 renk = "🔴" if 'ÇOK BÜYÜK' in urun['risk'] else "🟠"
                                                 st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | Mğz: {urun['magaza_kodu']}")
                                                 st.caption(f"  İptal Tutarı: ₺{urun['iptal_tutari']:.0f} | İptal Mik: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']} | {urun['risk']}")
@@ -2076,14 +2078,16 @@ def main_app():
                             if ic_bs_sorted:
                                 st.error(f"🔓 {len(ic_bs_sorted)} BS'de iç hırsızlık şüphesi")
                                 for bs in ic_bs_sorted:
-                                    cb_badge = f"🔴{bs.get('cok_buyuk_sayisi', 0)}" if bs.get('cok_buyuk_sayisi', 0) > 0 else ""
-                                    with st.expander(f"🔓 **{bs['BS']}** | {cb_badge} {bs['ic_sayisi']} şüpheli | {bs['Mağaza']} mğz"):
+                                    cb_badge = f"🔴{bs.get('cok_buyuk_sayisi', 0)} Büyük / " if bs.get('cok_buyuk_sayisi', 0) > 0 else ""
+                                    with st.expander(f"🔓 **{bs['BS']}** | {cb_badge}{bs['ic_sayisi']} şüpheli | {bs['Mağaza']} mğz"):
                                         c1, c2, c3 = st.columns(3)
                                         with c1: st.metric("Şüpheli Ürün", bs['ic_sayisi'])
                                         with c2: st.metric("İç Hırsızlık Puanı", bs['detay'].get('ic_hirsizlik', 0))
                                         with c3: st.metric("Toplam Risk", bs['Puan'])
                                         if bs.get('ic_urunler'):
-                                            for urun in bs.get('ic_urunler', [])[:15]:
+                                            # ÇOK BÜYÜK RİSK olanları başa al
+                                            urunler_sorted = sorted(bs.get('ic_urunler', []), key=lambda u: (0 if 'ÇOK BÜYÜK' in u.get('risk', '') else 1))
+                                            for urun in urunler_sorted[:15]:
                                                 renk = "🔴" if 'ÇOK BÜYÜK' in urun['risk'] else "🟠"
                                                 st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | Mğz: {urun['magaza_kodu']}")
                                                 st.caption(f"  İptal Tutarı: ₺{urun['iptal_tutari']:.0f} | İptal Mik: {urun['iptal_miktari']} | Fark: {urun['fark_miktari']} | {urun['risk']}")
@@ -2097,17 +2101,19 @@ def main_app():
                             if ic_mag_sorted:
                                 st.error(f"🔓 {len(ic_mag_sorted)} mağazada iç hırsızlık şüphesi")
                                 for mag in ic_mag_sorted[:30]:
-                                    cb_badge = f"🔴{mag.get('cok_buyuk_sayisi', 0)}" if mag.get('cok_buyuk_sayisi', 0) > 0 else ""
-                                    with st.expander(f"🔓 **{mag['Kod']}** {mag['Mağaza']} | {cb_badge} {mag['ic_sayisi']} şüpheli"):
+                                    cb_badge = f"🔴{mag.get('cok_buyuk_sayisi', 0)} Büyük / " if mag.get('cok_buyuk_sayisi', 0) > 0 else ""
+                                    with st.expander(f"🔓 **{mag['Kod']}** {mag['Mağaza']} | {cb_badge}{mag['ic_sayisi']} şüpheli"):
                                         c1, c2, c3 = st.columns(3)
                                         with c1: st.metric("Şüpheli Ürün", mag['ic_sayisi'])
                                         with c2: st.metric("İç Hırsızlık Puanı", mag['detay'].get('ic_hirsizlik', 0))
                                         with c3: st.metric("Toplam Risk", mag['Puan'])
                                         if mag.get('ic_urunler'):
                                             st.markdown("**Şüpheli Ürünler + Kamera:**")
-                                            malzeme_kodlari = [u['malzeme_kodu'] for u in mag.get('ic_urunler', [])]
+                                            # ÇOK BÜYÜK RİSK olanları başa al
+                                            urunler_sorted = sorted(mag.get('ic_urunler', []), key=lambda u: (0 if 'ÇOK BÜYÜK' in u.get('risk', '') else 1))
+                                            malzeme_kodlari = [u['malzeme_kodu'] for u in urunler_sorted]
                                             iptal_data = get_iptal_timestamps_for_magaza(mag['Kod'], malzeme_kodlari)
-                                            for urun in mag.get('ic_urunler', [])[:15]:
+                                            for urun in urunler_sorted[:15]:
                                                 kamera = get_kamera_bilgisi(str(urun['malzeme_kodu']), iptal_data, 15, urun.get('yukleme_tarihi'))
                                                 renk = "🔴" if 'ÇOK BÜYÜK' in urun['risk'] else "🟠"
                                                 st.write(f"{renk} **{urun['malzeme_kodu']}** - {urun['malzeme_tanimi'][:35]} | {urun['risk']}")
