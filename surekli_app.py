@@ -2837,6 +2837,13 @@ def main_app():
                                 st.session_state[file_key] = True
                                 if eklenen > 0:
                                     st.success(f"💾 {eklenen} yeni kayıt eklendi (delta hesaplandı)")
+                                    # Cache'leri temizle - yeni veriyi görmek için
+                                    st.cache_data.clear()
+                                    # Session state cache key'lerini sıfırla
+                                    for key in ["gm_cache_key", "sm_ozet_cache_key", "risk_cache_key"]:
+                                        if key in st.session_state:
+                                            del st.session_state[key]
+                                    st.info("🔄 GM Özet'e giderek yeni veriyi görebilirsiniz.")
                                 if atlanan > 0:
                                     st.info(f"⏭️ {atlanan} kayıt zaten mevcut (atlandı)")
                                 if eklenen == 0 and atlanan > 0:
