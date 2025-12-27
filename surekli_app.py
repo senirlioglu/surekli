@@ -1415,7 +1415,7 @@ def main_app():
             r4.markdown('<div class="risk-temiz">🟢 TEMİZ: 0</div>', unsafe_allow_html=True)
 
             # Sekmeler
-            tabs = st.tabs(["👔 SM Özet", "📋 BS Özet", "🏪 Mağazalar", "📊 Top 10 Açık", "📋 Sayım Disiplini", "🔴 Riskler"])
+            tabs = st.tabs(["👔 SM Özet", "📋 BS Özet", "🏪 Mağazalar", "📈 En Çok", "📊 Top 10 Açık", "📋 Sayım Disiplini", "🔴 Riskler"])
 
             with tabs[0]:
                 st.subheader("👔 Satış Müdürü Bazlı Özet")
@@ -1815,7 +1815,109 @@ def main_app():
                 else:
                     st.info("📥 Veri bulunamadı")
 
+            # ==================== EN ÇOK SEKMESİ ====================
             with tabs[3]:
+                st.subheader("📈 En Çok")
+                st.caption("En yüksek fark, fire ve sayım değerlerine sahip ürünler")
+
+                # Lazy loading için buton
+                if st.button("📈 En Çok Yükle", key="load_encok"):
+                    st.session_state['encok_loaded'] = True
+
+                if st.session_state.get('encok_loaded', False) and gm_df is not None and len(gm_df) > 0:
+                    # Analiz tipi seçimi
+                    def on_encok_tip_change():
+                        if 'encok_last_tip' in st.session_state:
+                            del st.session_state['encok_last_tip']
+
+                    encok_tip = st.selectbox(
+                        "Analiz Tipi",
+                        ["Fark (-)", "Fark (+)", "Fire", "Sayım"],
+                        key="encok_tip_select",
+                        on_change=on_encok_tip_change
+                    )
+
+                    # Görünüm seçimi
+                    encok_view = st.selectbox(
+                        "Görünüm",
+                        ["SM", "BS", "Mağaza"],
+                        key="encok_view_select"
+                    )
+
+                    # Daha fazla göster checkbox
+                    show_more = st.checkbox("Daha fazla göster (50)", key="encok_show_more")
+                    limit = 50 if show_more else 20
+
+                    encok_placeholder = st.empty()
+
+                    with encok_placeholder.container():
+                        # Görünüme göre gruplama kolonları belirle
+                        if encok_view == "SM":
+                            group_cols = ['satis_muduru', 'stok_kodu', 'stok_tanim']
+                            display_col = 'satis_muduru'
+                        elif encok_view == "BS":
+                            group_cols = ['bolge_sorumlusu', 'stok_kodu', 'stok_tanim']
+                            display_col = 'bolge_sorumlusu'
+                        else:
+                            group_cols = ['magaza_kodu', 'magaza_tanim', 'stok_kodu', 'stok_tanim']
+                            display_col = 'magaza_tanim'
+
+                        # Gerekli kolonların var olduğunu kontrol et
+                        required_cols = [c for c in group_cols if c in gm_df.columns]
+                        if len(required_cols) < len(group_cols):
+                            st.warning("Gerekli kolonlar bulunamadı")
+                        else:
+                            if encok_tip == "Fark (-)":
+                                # En düşük (en negatif) fark_tutari
+                                if 'fark_tutari' in gm_df.columns:
+                                    agg_df = gm_df.groupby(group_cols).agg({'fark_tutari': 'sum'}).reset_index()
+                                    result = agg_df.nsmallest(limit, 'fark_tutari')
+
+                                    st.markdown(f"**En Düşük Fark (En Negatif) - Top {limit}**")
+                                    for row in result.to_dict('records'):
+                                        st.write(f"**{row[display_col]}** | {row['stok_kodu']} - {row['stok_tanim']}: ₺{row['fark_tutari']:,.0f}")
+                                else:
+                                    st.warning("fark_tutari kolonu bulunamadı")
+
+                            elif encok_tip == "Fark (+)":
+                                # En yüksek (en pozitif) fark_tutari
+                                if 'fark_tutari' in gm_df.columns:
+                                    agg_df = gm_df.groupby(group_cols).agg({'fark_tutari': 'sum'}).reset_index()
+                                    result = agg_df.nlargest(limit, 'fark_tutari')
+
+                                    st.markdown(f"**En Yüksek Fark (En Pozitif) - Top {limit}**")
+                                    for row in result.to_dict('records'):
+                                        st.write(f"**{row[display_col]}** | {row['stok_kodu']} - {row['stok_tanim']}: ₺{row['fark_tutari']:,.0f}")
+                                else:
+                                    st.warning("fark_tutari kolonu bulunamadı")
+
+                            elif encok_tip == "Fire":
+                                # En düşük (en negatif) fire_tutari
+                                if 'fire_tutari' in gm_df.columns:
+                                    agg_df = gm_df.groupby(group_cols).agg({'fire_tutari': 'sum'}).reset_index()
+                                    result = agg_df.nsmallest(limit, 'fire_tutari')
+
+                                    st.markdown(f"**En Düşük Fire (En Negatif) - Top {limit}**")
+                                    for row in result.to_dict('records'):
+                                        st.write(f"**{row[display_col]}** | {row['stok_kodu']} - {row['stok_tanim']}: ₺{row['fire_tutari']:,.0f}")
+                                else:
+                                    st.warning("fire_tutari kolonu bulunamadı")
+
+                            elif encok_tip == "Sayım":
+                                # En yüksek envanter_sayisi
+                                if 'envanter_sayisi' in gm_df.columns:
+                                    agg_df = gm_df.groupby(group_cols).agg({'envanter_sayisi': 'sum'}).reset_index()
+                                    result = agg_df.nlargest(limit, 'envanter_sayisi')
+
+                                    st.markdown(f"**En Yüksek Sayım - Top {limit}**")
+                                    for row in result.to_dict('records'):
+                                        st.write(f"**{row[display_col]}** | {row['stok_kodu']} - {row['stok_tanim']}: {row['envanter_sayisi']:,.0f} adet")
+                                else:
+                                    st.warning("envanter_sayisi kolonu bulunamadı")
+                elif not st.session_state.get('encok_loaded', False):
+                    st.info("📈 Analizi yüklemek için yukarıdaki butona tıklayın")
+
+            with tabs[4]:
                 st.subheader("📊 En Yüksek Açık - Top 10 Mağaza")
 
                 if gm_df is not None and len(gm_df) > 0:
@@ -1833,7 +1935,7 @@ def main_app():
                     st.info("📥 Veri bulunamadı")
 
             # ==================== SAYIM DİSİPLİNİ SEKMESİ ====================
-            with tabs[4]:
+            with tabs[5]:
                 st.subheader("📋 Sayım Disiplini")
                 st.caption("Sürekli envanter disiplini kontrolü - Meyve/Sebz, Et-Tavuk, Ekmek")
 
@@ -2169,7 +2271,7 @@ def main_app():
                 elif st.session_state.get('disiplin_loaded', False):
                     st.info("📥 Veri bulunamadı")
 
-            with tabs[5]:
+            with tabs[6]:
                 st.subheader("🔴 Risk Değerlendirme")
 
                 if gm_df is not None and len(gm_df) > 0:
