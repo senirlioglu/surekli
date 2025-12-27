@@ -16,6 +16,12 @@ from utils.risk import (
     hesapla_birim_risk, get_risk_seviyesi,
     hesapla_birim_risk_v2, tespit_supheli_urun
 )
+from utils.risk_karnesi import (
+    hesapla_tum_magazalar_risk,
+    uret_bolge_risk_karnesi_excel,
+    uret_magaza_risk_raporu_excel,
+    hesapla_magaza_risk_karnesi
+)
 
 # ==================== SAYFA AYARI ====================
 st.set_page_config(
@@ -1415,7 +1421,7 @@ def main_app():
             r4.markdown('<div class="risk-temiz">🟢 TEMİZ: 0</div>', unsafe_allow_html=True)
 
             # Sekmeler
-            tabs = st.tabs(["👔 SM Özet", "📋 BS Özet", "🏪 Mağazalar", "📈 En Çok", "📊 Top 10 Açık", "📋 Sayım Disiplini", "🔴 Riskler"])
+            tabs = st.tabs(["👔 SM Özet", "📋 BS Özet", "🏪 Mağazalar", "📈 En Çok", "📊 Top 10 Açık", "📋 Sayım Disiplini", "🔴 Riskler", "📥 Risk Karnesi"])
 
             with tabs[0]:
                 st.subheader("👔 Satış Müdürü Bazlı Özet")
@@ -3104,6 +3110,131 @@ def main_app():
                                 if len(mag_sorted) > 30: st.caption(f"... ve {len(mag_sorted) - 30} mağaza daha")
                             else:
                                 st.success("🟢 Aynı sayım bulunamadı!")
+
+            # ==================== RİSK KARNESİ SEKMESİ ====================
+            with tabs[7]:
+                st.subheader("📥 Risk Karnesi İndir")
+                st.caption("Bölge ve mağaza bazlı kapsamlı risk raporları")
+
+                # Lazy loading
+                if st.button("📊 Risk Karnesi Hazırla", key="load_risk_karnesi"):
+                    st.session_state['risk_karnesi_loaded'] = True
+
+                if st.session_state.get('risk_karnesi_loaded', False) and gm_df is not None and len(gm_df) > 0:
+                    # Bölge açık oranı
+                    bolge_satis = gm_df['satis_hasilati'].sum() if 'satis_hasilati' in gm_df.columns else 0
+                    bolge_fark = gm_df['fark_tutari'].sum() if 'fark_tutari' in gm_df.columns else 0
+                    bolge_fire = gm_df['fire_tutari'].sum() if 'fire_tutari' in gm_df.columns else 0
+                    bolge_acik = bolge_fark + bolge_fire
+                    bolge_acik_oran = abs(bolge_acik / bolge_satis) if bolge_satis > 0 else 0
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.markdown("### 🌍 Bölge Raporu")
+                        st.caption("Tüm mağazaların Risk Karnesi özeti")
+
+                        if st.button("📊 Bölge Risk Karnesi Oluştur", key="btn_bolge_indir"):
+                            with st.spinner("Bölge raporu hazırlanıyor..."):
+                                try:
+                                    donem = selected_periods[0] if selected_periods else datetime.now().strftime('%Y%m')
+                                    excel_bytes = uret_bolge_risk_karnesi_excel(gm_df, "Bölge", donem)
+                                    if excel_bytes:
+                                        st.download_button(
+                                            label="💾 İndir (Excel)",
+                                            data=excel_bytes,
+                                            file_name=f"Risk_Karnesi_{donem}.xlsx",
+                                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                            key="download_bolge_excel"
+                                        )
+                                        st.success("✅ Bölge Risk Karnesi hazır!")
+                                    else:
+                                        st.error("Rapor oluşturulamadı")
+                                except Exception as e:
+                                    st.error(f"Hata: {str(e)}")
+
+                    with col2:
+                        st.markdown("### 🏪 Mağaza Raporu")
+                        st.caption("Tek mağaza detaylı Risk Raporu")
+
+                        # SM filtresi
+                        sm_list = gm_df['satis_muduru'].dropna().unique().tolist() if 'satis_muduru' in gm_df.columns else []
+                        selected_sm_karne = st.selectbox("👔 SM Filtre:", ["Tümü"] + sorted(sm_list), key="karne_sm_filter")
+
+                        # Mağaza listesi (filtrelenmiş)
+                        mag_df = gm_df.copy()
+                        if selected_sm_karne != "Tümü":
+                            mag_df = mag_df[mag_df['satis_muduru'] == selected_sm_karne]
+
+                        magaza_list = mag_df.groupby(['magaza_kodu', 'magaza_tanim']).size().reset_index()[['magaza_kodu', 'magaza_tanim']]
+                        magaza_options = [f"{row['magaza_kodu']} - {row['magaza_tanim']}" for _, row in magaza_list.iterrows()]
+
+                        if magaza_options:
+                            selected_magaza_karne = st.selectbox("🏪 Mağaza Seç:", magaza_options, key="karne_magaza_select")
+
+                            if st.button("📋 Mağaza Risk Raporu Oluştur", key="btn_magaza_indir"):
+                                magaza_kodu = selected_magaza_karne.split(" - ")[0]
+                                magaza_adi = selected_magaza_karne.split(" - ")[1] if " - " in selected_magaza_karne else ""
+
+                                with st.spinner(f"{magaza_kodu} raporu hazırlanıyor..."):
+                                    try:
+                                        df_tek_magaza = gm_df[gm_df['magaza_kodu'] == magaza_kodu]
+                                        donem = selected_periods[0] if selected_periods else datetime.now().strftime('%Y%m')
+
+                                        magaza_bilgi = {
+                                            'kodu': magaza_kodu,
+                                            'adi': magaza_adi,
+                                            'sm': df_tek_magaza['satis_muduru'].iloc[0] if len(df_tek_magaza) > 0 and 'satis_muduru' in df_tek_magaza.columns else '',
+                                            'bs': df_tek_magaza['bolge_sorumlusu'].iloc[0] if len(df_tek_magaza) > 0 and 'bolge_sorumlusu' in df_tek_magaza.columns else '',
+                                            'bolge': 'Bölge',
+                                            'donem': donem
+                                        }
+
+                                        excel_bytes = uret_magaza_risk_raporu_excel(df_tek_magaza, magaza_bilgi, bolge_acik_oran)
+
+                                        if excel_bytes:
+                                            st.download_button(
+                                                label="💾 İndir (Excel)",
+                                                data=excel_bytes,
+                                                file_name=f"{magaza_kodu}_{magaza_adi.replace(' ', '_')}_Risk_Raporu.xlsx",
+                                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                                key="download_magaza_excel"
+                                            )
+                                            st.success(f"✅ {magaza_kodu} Risk Raporu hazır!")
+                                        else:
+                                            st.error("Rapor oluşturulamadı")
+                                    except Exception as e:
+                                        st.error(f"Hata: {str(e)}")
+                        else:
+                            st.warning("Mağaza bulunamadı")
+
+                    # Özet bilgi
+                    st.markdown("---")
+                    st.markdown("### 📊 Risk Özeti")
+
+                    try:
+                        ozet_df, _ = hesapla_tum_magazalar_risk(gm_df)
+                        if not ozet_df.empty:
+                            kritik = len(ozet_df[ozet_df['seviye'] == 'KRİTİK'])
+                            riskli = len(ozet_df[ozet_df['seviye'] == 'RİSKLİ'])
+                            dikkat = len(ozet_df[ozet_df['seviye'] == 'DİKKAT'])
+                            temiz = len(ozet_df[ozet_df['seviye'] == 'TEMİZ'])
+
+                            m1, m2, m3, m4 = st.columns(4)
+                            m1.metric("🔴 Kritik", kritik)
+                            m2.metric("🟠 Riskli", riskli)
+                            m3.metric("🟡 Dikkat", dikkat)
+                            m4.metric("🟢 Temiz", temiz)
+
+                            # Top 5 riskli mağaza
+                            st.markdown("**🔝 En Riskli 5 Mağaza:**")
+                            for i, row in ozet_df.head(5).iterrows():
+                                st.write(f"{row['emoji']} **{row['magaza_kodu']}** {row['magaza_adi']} | Puan: {row['toplam_puan']:.0f} | {row['seviye']} | {row['top3']}")
+                    except Exception as e:
+                        st.warning(f"Özet hesaplanamadı: {str(e)}")
+
+                elif not st.session_state.get('risk_karnesi_loaded', False):
+                    st.info("📊 Risk karnesini hazırlamak için yukarıdaki butona tıklayın")
 
                 else:
                     st.info("📥 Veri bulunamadı")
