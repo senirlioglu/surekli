@@ -2736,8 +2736,8 @@ def main_app():
                                 yapan_magazalar = set(surekli_df[yapan_mask]['magaza_kodu'].unique())
                                 yapmayan_magazalar = tum_magazalar - yapan_magazalar
 
-                                # Sayılan ürünler (envanter_sayisi > 0 olanlar)
-                                sayilan_df = surekli_df[surekli_df['envanter_sayisi'].fillna(0).astype(int) > 0]
+                                # Sayılan ürünler (envanter_sayisi >= hafta olanlar - hafta kontrolü)
+                                sayilan_df = surekli_df[surekli_df['envanter_sayisi'].fillna(0).astype(int) >= hafta]
 
                                 # SM bazlı ürün sayısı
                                 sm_urun_sayisi = sayilan_df.groupby('satis_muduru').size().to_dict() if len(sayilan_df) > 0 else {}
@@ -2777,7 +2777,7 @@ def main_app():
                                         ortalama = urun_sayisi / data['yapan'] if data['yapan'] > 0 else 0
                                         renk = "🔴" if yapmayan_sayisi > 0 else "🟢"
                                         with st.expander(f"{renk} **{sm_adi}** | Mağaza: {data['toplam']} | ✅ Yapan: {data['yapan']} | ❌ Yapmayan: {yapmayan_sayisi} | 📦 Ürün: {urun_sayisi} | Ort: {ortalama:.1f}"):
-                                            st.markdown(f"**📊 Sayılan Ürün:** {urun_sayisi} | **Ortalama (ürün/mağaza):** {ortalama:.1f}")
+                                            st.markdown(f"**📊 Hafta {hafta} sayılan ürün (envanter≥{hafta}):** {urun_sayisi} | **Ortalama:** {ortalama:.1f} ürün/mağaza")
                                             if yapmayan_sayisi > 0:
                                                 st.markdown("**❌ Sayım Yapmayan Mağazalar:**")
                                                 for m in data['yapmayan_detay']:
@@ -2817,7 +2817,7 @@ def main_app():
                                         ortalama = urun_sayisi / data['yapan'] if data['yapan'] > 0 else 0
                                         renk = "🔴" if yapmayan_sayisi > 0 else "🟢"
                                         with st.expander(f"{renk} **{bs_adi}** | Mağaza: {data['toplam']} | ✅ Yapan: {data['yapan']} | ❌ Yapmayan: {yapmayan_sayisi} | 📦 Ürün: {urun_sayisi} | Ort: {ortalama:.1f}"):
-                                            st.markdown(f"**📊 Sayılan Ürün:** {urun_sayisi} | **Ortalama (ürün/mağaza):** {ortalama:.1f}")
+                                            st.markdown(f"**📊 Hafta {hafta} sayılan ürün (envanter≥{hafta}):** {urun_sayisi} | **Ortalama:** {ortalama:.1f} ürün/mağaza")
                                             if yapmayan_sayisi > 0:
                                                 st.markdown("**❌ Sayım Yapmayan Mağazalar:**")
                                                 for m in data['yapmayan_detay']:
