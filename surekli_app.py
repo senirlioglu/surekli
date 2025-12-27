@@ -1837,7 +1837,11 @@ def main_app():
                 st.subheader("📋 Sayım Disiplini")
                 st.caption("Sürekli envanter disiplini kontrolü - Meyve/Sebz, Et-Tavuk, Ekmek")
 
-                if gm_df is not None and len(gm_df) > 0:
+                # Lazy loading için buton
+                if st.button("📊 Sayım Disiplini Yükle", key="load_disiplin"):
+                    st.session_state['disiplin_loaded'] = True
+
+                if st.session_state.get('disiplin_loaded', False) and gm_df is not None and len(gm_df) > 0:
                     # Disiplin değişikliği callback
                     def on_disiplin_change():
                         if 'disiplin_last' in st.session_state:
@@ -2162,7 +2166,7 @@ def main_app():
                                         st.success("Tüm ürünlerde sayım var!")
                     else:
                         st.warning("⚠️ Sürekli envanter verisi bulunamadı!")
-                else:
+                elif st.session_state.get('disiplin_loaded', False):
                     st.info("📥 Veri bulunamadı")
 
             with tabs[5]:
