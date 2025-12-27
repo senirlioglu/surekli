@@ -2684,6 +2684,12 @@ def main_app():
                     elif risk_type == "📋 Sayım Disiplini":
                         st.caption("Sürekli envanter disiplini kontrolü - Meyve/Sebz, Et-Tavuk, Ekmek")
 
+                        # Disiplin değişikliği callback
+                        def on_disiplin_change():
+                            # Değişiklik olduğunda rerun tetikle
+                            if 'disiplin_last' in st.session_state:
+                                del st.session_state['disiplin_last']
+
                         # Ek selectbox'lar
                         col_disiplin, col_hafta = st.columns([2, 1])
                         with col_disiplin:
@@ -2692,9 +2698,12 @@ def main_app():
                                 "2️⃣ Eksik Sayım",
                                 "3️⃣ Ürün - Sıfır",
                                 "4️⃣ Ürün Grubu - Sıfır"
-                            ], key="disiplin_type_select")
+                            ], key="disiplin_type_select", on_change=on_disiplin_change)
                         with col_hafta:
-                            hafta = st.selectbox("📅 Hafta:", [1, 2, 3, 4], key="hafta_select")
+                            hafta = st.selectbox("📅 Hafta:", [1, 2, 3, 4], key="hafta_select", on_change=on_disiplin_change)
+
+                        # Disiplin container - her seçim için benzersiz
+                        st.session_state['disiplin_last'] = f"{disiplin_tipi}_{hafta}_{view_type}"
 
                         # Sürekli envanter ürünlerini filtrele (Meyve/Sebz, Et-Tavuk, Ekmek)
                         surekli_kosullar = ['Meyve/Sebz', 'Et-Tavuk', 'Ekmek']
@@ -2705,7 +2714,10 @@ def main_app():
                             st.warning("⚠️ 'depolama_kosulu' sütunu bulunamadı!")
 
                         if len(surekli_df) > 0:
-                            st.info(f"📊 Sürekli envanter: {surekli_df['magaza_kodu'].nunique()} mağaza, {surekli_df['malzeme_kodu'].nunique()} ürün")
+                            # Her disiplin tipi için benzersiz container
+                            disiplin_placeholder = st.empty()
+                            with disiplin_placeholder.container():
+                                st.info(f"📊 Sürekli envanter: {surekli_df['magaza_kodu'].nunique()} mağaza, {surekli_df['malzeme_kodu'].nunique()} ürün | 📋 {disiplin_tipi} | Hafta: {hafta}")
 
                             # ==================== 1. VAR/YOK ====================
                             if disiplin_tipi == "1️⃣ Var/Yok":
@@ -2723,6 +2735,16 @@ def main_app():
                                 yapan_mask = surekli_df['envanter_sayisi'].fillna(0).astype(int) >= hafta
                                 yapan_magazalar = set(surekli_df[yapan_mask]['magaza_kodu'].unique())
                                 yapmayan_magazalar = tum_magazalar - yapan_magazalar
+
+                                # Sayılan ürünler (envanter_sayisi > 0 olanlar)
+                                sayilan_df = surekli_df[surekli_df['envanter_sayisi'].fillna(0).astype(int) > 0]
+
+                                # SM bazlı ürün sayısı
+                                sm_urun_sayisi = sayilan_df.groupby('satis_muduru').size().to_dict() if len(sayilan_df) > 0 else {}
+                                # BS bazlı ürün sayısı
+                                bs_urun_sayisi = sayilan_df.groupby('bolge_sorumlusu').size().to_dict() if len(sayilan_df) > 0 else {}
+                                # Mağaza bazlı ürün sayısı
+                                mag_urun_sayisi = sayilan_df.groupby('magaza_kodu').size().to_dict() if len(sayilan_df) > 0 else {}
 
                                 if view_type == "👔 SM":
                                     # Vektörize: SM bazlı groupby
@@ -2751,8 +2773,11 @@ def main_app():
 
                                     for sm_adi, data in sm_sorted:
                                         yapmayan_sayisi = len(data['yapmayan_detay'])
+                                        urun_sayisi = sm_urun_sayisi.get(sm_adi, 0)
+                                        ortalama = urun_sayisi / data['yapan'] if data['yapan'] > 0 else 0
                                         renk = "🔴" if yapmayan_sayisi > 0 else "🟢"
-                                        with st.expander(f"{renk} **{sm_adi}** | Toplam: {data['toplam']} | ✅ Yapan: {data['yapan']} | ❌ Yapmayan: {yapmayan_sayisi}"):
+                                        with st.expander(f"{renk} **{sm_adi}** | Mağaza: {data['toplam']} | ✅ Yapan: {data['yapan']} | ❌ Yapmayan: {yapmayan_sayisi} | 📦 Ürün: {urun_sayisi} | Ort: {ortalama:.1f}"):
+                                            st.markdown(f"**📊 Sayılan Ürün:** {urun_sayisi} | **Ortalama (ürün/mağaza):** {ortalama:.1f}")
                                             if yapmayan_sayisi > 0:
                                                 st.markdown("**❌ Sayım Yapmayan Mağazalar:**")
                                                 for m in data['yapmayan_detay']:
@@ -2788,8 +2813,11 @@ def main_app():
 
                                     for bs_adi, data in bs_sorted:
                                         yapmayan_sayisi = len(data['yapmayan_detay'])
+                                        urun_sayisi = bs_urun_sayisi.get(bs_adi, 0)
+                                        ortalama = urun_sayisi / data['yapan'] if data['yapan'] > 0 else 0
                                         renk = "🔴" if yapmayan_sayisi > 0 else "🟢"
-                                        with st.expander(f"{renk} **{bs_adi}** | Toplam: {data['toplam']} | ✅ Yapan: {data['yapan']} | ❌ Yapmayan: {yapmayan_sayisi}"):
+                                        with st.expander(f"{renk} **{bs_adi}** | Mağaza: {data['toplam']} | ✅ Yapan: {data['yapan']} | ❌ Yapmayan: {yapmayan_sayisi} | 📦 Ürün: {urun_sayisi} | Ort: {ortalama:.1f}"):
+                                            st.markdown(f"**📊 Sayılan Ürün:** {urun_sayisi} | **Ortalama (ürün/mağaza):** {ortalama:.1f}")
                                             if yapmayan_sayisi > 0:
                                                 st.markdown("**❌ Sayım Yapmayan Mağazalar:**")
                                                 for m in data['yapmayan_detay']:
@@ -2800,11 +2828,15 @@ def main_app():
                                 elif view_type == "🏪 Mağaza":
                                     st.markdown(f"**Hafta {hafta} için sayım durumu:**")
 
-                                    col1, col2 = st.columns(2)
+                                    col1, col2, col3 = st.columns(3)
                                     with col1:
                                         st.metric("✅ Yapan", len(yapan_magazalar))
                                     with col2:
                                         st.metric("❌ Yapmayan", len(yapmayan_magazalar))
+                                    with col3:
+                                        toplam_urun = sum(mag_urun_sayisi.values())
+                                        ort = toplam_urun / len(yapan_magazalar) if len(yapan_magazalar) > 0 else 0
+                                        st.metric("📦 Ort. Ürün/Mağaza", f"{ort:.1f}")
 
                                     if yapmayan_magazalar:
                                         st.markdown("**❌ Sayım Yapmayan Mağazalar:**")
@@ -2823,6 +2855,23 @@ def main_app():
                                             st.caption(f"... ve {len(yapmayan_list) - 50} mağaza daha")
                                     else:
                                         st.success("🟢 Tüm mağazalar sayım yapmış!")
+
+                                    # Yapan mağazaları da göster
+                                    if yapan_magazalar:
+                                        st.markdown("---")
+                                        st.markdown("**✅ Sayım Yapan Mağazalar (ürün sayısına göre):**")
+                                        yapan_list = [{
+                                            'kod': mag,
+                                            'adi': mag_lookup_dict.get(mag, {}).get('magaza_tanim', ''),
+                                            'sm': mag_lookup_dict.get(mag, {}).get('satis_muduru', ''),
+                                            'urun': mag_urun_sayisi.get(mag, 0)
+                                        } for mag in yapan_magazalar]
+
+                                        for m in sorted(yapan_list, key=lambda x: x['urun'], reverse=True)[:30]:
+                                            st.write(f"✅ **{m['kod']}** {m['adi']} | SM: {m['sm']} | 📦 {m['urun']} ürün")
+
+                                        if len(yapan_list) > 30:
+                                            st.caption(f"... ve {len(yapan_list) - 30} mağaza daha")
 
                             # ==================== 2. EKSİK SAYIM ====================
                             elif disiplin_tipi == "2️⃣ Eksik Sayım":
