@@ -1825,95 +1825,82 @@ def main_app():
                     st.session_state['encok_loaded'] = True
 
                 if st.session_state.get('encok_loaded', False) and gm_df is not None and len(gm_df) > 0:
-                    # Analiz tipi seçimi
-                    def on_encok_tip_change():
-                        if 'encok_last_tip' in st.session_state:
-                            del st.session_state['encok_last_tip']
+                    # Kolonları kontrol et
+                    required = ['magaza_kodu', 'magaza_tanim', 'malzeme_kodu', 'malzeme_tanimi', 'fark_tutari', 'fire_tutari']
+                    missing = [c for c in required if c not in gm_df.columns]
 
-                    encok_tip = st.selectbox(
-                        "Analiz Tipi",
-                        ["Fark (-)", "Fark (+)", "Fire", "Sayım"],
-                        key="encok_tip_select",
-                        on_change=on_encok_tip_change
-                    )
+                    if missing:
+                        st.warning(f"Eksik kolonlar: {missing}")
+                    else:
+                        # Analiz tipi ve görünüm seçimi
+                        col_tip, col_view = st.columns([2, 2])
+                        with col_tip:
+                            encok_tip = st.selectbox(
+                                "Analiz Tipi",
+                                ["Fark (-)", "Fark (+)", "Fire", "Sayım"],
+                                key="encok_tip_select"
+                            )
+                        with col_view:
+                            encok_view = st.selectbox(
+                                "Görünüm",
+                                ["Mağaza", "SM", "BS"],
+                                key="encok_view_select"
+                            )
 
-                    # Görünüm seçimi
-                    encok_view = st.selectbox(
-                        "Görünüm",
-                        ["SM", "BS", "Mağaza"],
-                        key="encok_view_select"
-                    )
+                        # SM/BS seçimi için filtre
+                        filtered_df = gm_df.copy()
 
-                    # Daha fazla göster checkbox
-                    show_more = st.checkbox("Daha fazla göster (50)", key="encok_show_more")
-                    limit = 50 if show_more else 20
+                        if encok_view == "SM" and 'satis_muduru' in gm_df.columns:
+                            sm_list = sorted(gm_df['satis_muduru'].dropna().unique().tolist())
+                            selected_sm = st.selectbox("Satış Müdürü", sm_list, key="encok_sm_select")
+                            filtered_df = gm_df[gm_df['satis_muduru'] == selected_sm]
+                        elif encok_view == "BS" and 'bolge_sorumlusu' in gm_df.columns:
+                            bs_list = sorted(gm_df['bolge_sorumlusu'].dropna().unique().tolist())
+                            selected_bs = st.selectbox("Bölge Sorumlusu", bs_list, key="encok_bs_select")
+                            filtered_df = gm_df[gm_df['bolge_sorumlusu'] == selected_bs]
 
-                    encok_placeholder = st.empty()
+                        # Daha fazla göster checkbox
+                        show_more = st.checkbox("Daha fazla göster (50)", key="encok_show_more")
+                        limit = 50 if show_more else 20
 
-                    with encok_placeholder.container():
-                        # Görünüme göre gruplama kolonları belirle
-                        if encok_view == "SM":
-                            group_cols = ['satis_muduru', 'malzeme_kodu', 'malzeme_tanimi']
-                            display_col = 'satis_muduru'
-                        elif encok_view == "BS":
-                            group_cols = ['bolge_sorumlusu', 'malzeme_kodu', 'malzeme_tanimi']
-                            display_col = 'bolge_sorumlusu'
-                        else:
-                            group_cols = ['magaza_kodu', 'magaza_tanim', 'malzeme_kodu', 'malzeme_tanimi']
-                            display_col = 'magaza_tanim'
+                        # Mağaza + Ürün bazlı gruplama (her satır bir mağaza-ürün kombinasyonu)
+                        group_cols = ['magaza_kodu', 'magaza_tanim', 'malzeme_kodu', 'malzeme_tanimi']
 
-                        # Gerekli kolonların var olduğunu kontrol et
-                        required_cols = [c for c in group_cols if c in gm_df.columns]
-                        if len(required_cols) < len(group_cols):
-                            st.warning("Gerekli kolonlar bulunamadı")
-                        else:
-                            if encok_tip == "Fark (-)":
-                                # En düşük (en negatif) fark_tutari
-                                if 'fark_tutari' in gm_df.columns:
-                                    agg_df = gm_df.groupby(group_cols).agg({'fark_tutari': 'sum'}).reset_index()
-                                    result = agg_df.nsmallest(limit, 'fark_tutari')
+                        if encok_tip == "Fark (-)":
+                            agg_df = filtered_df.groupby(group_cols).agg({'fark_tutari': 'sum'}).reset_index()
+                            result = agg_df.nsmallest(limit, 'fark_tutari')
 
-                                    st.markdown(f"**En Düşük Fark (En Negatif) - Top {limit}**")
-                                    for row in result.to_dict('records'):
-                                        st.write(f"**{row[display_col]}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: ₺{row['fark_tutari']:,.0f}")
-                                else:
-                                    st.warning("fark_tutari kolonu bulunamadı")
+                            st.markdown(f"**🔻 En Düşük Fark (En Negatif) - Top {limit}**")
+                            for i, row in enumerate(result.to_dict('records'), 1):
+                                st.write(f"{i}. **{row['magaza_tanim']}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: ₺{row['fark_tutari']:,.0f}")
 
-                            elif encok_tip == "Fark (+)":
-                                # En yüksek (en pozitif) fark_tutari
-                                if 'fark_tutari' in gm_df.columns:
-                                    agg_df = gm_df.groupby(group_cols).agg({'fark_tutari': 'sum'}).reset_index()
-                                    result = agg_df.nlargest(limit, 'fark_tutari')
+                        elif encok_tip == "Fark (+)":
+                            agg_df = filtered_df.groupby(group_cols).agg({'fark_tutari': 'sum'}).reset_index()
+                            result = agg_df.nlargest(limit, 'fark_tutari')
 
-                                    st.markdown(f"**En Yüksek Fark (En Pozitif) - Top {limit}**")
-                                    for row in result.to_dict('records'):
-                                        st.write(f"**{row[display_col]}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: ₺{row['fark_tutari']:,.0f}")
-                                else:
-                                    st.warning("fark_tutari kolonu bulunamadı")
+                            st.markdown(f"**🔺 En Yüksek Fark (En Pozitif) - Top {limit}**")
+                            for i, row in enumerate(result.to_dict('records'), 1):
+                                st.write(f"{i}. **{row['magaza_tanim']}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: ₺{row['fark_tutari']:,.0f}")
 
-                            elif encok_tip == "Fire":
-                                # En düşük (en negatif) fire_tutari
-                                if 'fire_tutari' in gm_df.columns:
-                                    agg_df = gm_df.groupby(group_cols).agg({'fire_tutari': 'sum'}).reset_index()
-                                    result = agg_df.nsmallest(limit, 'fire_tutari')
+                        elif encok_tip == "Fire":
+                            agg_df = filtered_df.groupby(group_cols).agg({'fire_tutari': 'sum'}).reset_index()
+                            result = agg_df.nsmallest(limit, 'fire_tutari')
 
-                                    st.markdown(f"**En Düşük Fire (En Negatif) - Top {limit}**")
-                                    for row in result.to_dict('records'):
-                                        st.write(f"**{row[display_col]}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: ₺{row['fire_tutari']:,.0f}")
-                                else:
-                                    st.warning("fire_tutari kolonu bulunamadı")
+                            st.markdown(f"**🔥 En Düşük Fire (En Negatif) - Top {limit}**")
+                            for i, row in enumerate(result.to_dict('records'), 1):
+                                st.write(f"{i}. **{row['magaza_tanim']}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: ₺{row['fire_tutari']:,.0f}")
 
-                            elif encok_tip == "Sayım":
-                                # En yüksek envanter_sayisi
-                                if 'envanter_sayisi' in gm_df.columns:
-                                    agg_df = gm_df.groupby(group_cols).agg({'envanter_sayisi': 'sum'}).reset_index()
-                                    result = agg_df.nlargest(limit, 'envanter_sayisi')
+                        elif encok_tip == "Sayım":
+                            if 'envanter_sayisi' in filtered_df.columns:
+                                agg_df = filtered_df.groupby(group_cols).agg({'envanter_sayisi': 'sum'}).reset_index()
+                                result = agg_df.nlargest(limit, 'envanter_sayisi')
 
-                                    st.markdown(f"**En Yüksek Sayım - Top {limit}**")
-                                    for row in result.to_dict('records'):
-                                        st.write(f"**{row[display_col]}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: {row['envanter_sayisi']:,.0f} adet")
-                                else:
-                                    st.warning("envanter_sayisi kolonu bulunamadı")
+                                st.markdown(f"**📊 En Yüksek Sayım - Top {limit}**")
+                                for i, row in enumerate(result.to_dict('records'), 1):
+                                    st.write(f"{i}. **{row['magaza_tanim']}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: {row['envanter_sayisi']:,.0f} adet")
+                            else:
+                                st.warning("envanter_sayisi kolonu bulunamadı")
+
                 elif not st.session_state.get('encok_loaded', False):
                     st.info("📈 Analizi yüklemek için yukarıdaki butona tıklayın")
 
