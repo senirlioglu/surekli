@@ -1853,13 +1853,13 @@ def main_app():
                     with encok_placeholder.container():
                         # Görünüme göre gruplama kolonları belirle
                         if encok_view == "SM":
-                            group_cols = ['satis_muduru', 'stok_kodu', 'stok_tanim']
+                            group_cols = ['satis_muduru', 'malzeme_kodu', 'malzeme_tanimi']
                             display_col = 'satis_muduru'
                         elif encok_view == "BS":
-                            group_cols = ['bolge_sorumlusu', 'stok_kodu', 'stok_tanim']
+                            group_cols = ['bolge_sorumlusu', 'malzeme_kodu', 'malzeme_tanimi']
                             display_col = 'bolge_sorumlusu'
                         else:
-                            group_cols = ['magaza_kodu', 'magaza_tanim', 'stok_kodu', 'stok_tanim']
+                            group_cols = ['magaza_kodu', 'magaza_tanim', 'malzeme_kodu', 'malzeme_tanimi']
                             display_col = 'magaza_tanim'
 
                         # Gerekli kolonların var olduğunu kontrol et
@@ -1875,7 +1875,7 @@ def main_app():
 
                                     st.markdown(f"**En Düşük Fark (En Negatif) - Top {limit}**")
                                     for row in result.to_dict('records'):
-                                        st.write(f"**{row[display_col]}** | {row['stok_kodu']} - {row['stok_tanim']}: ₺{row['fark_tutari']:,.0f}")
+                                        st.write(f"**{row[display_col]}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: ₺{row['fark_tutari']:,.0f}")
                                 else:
                                     st.warning("fark_tutari kolonu bulunamadı")
 
@@ -1887,7 +1887,7 @@ def main_app():
 
                                     st.markdown(f"**En Yüksek Fark (En Pozitif) - Top {limit}**")
                                     for row in result.to_dict('records'):
-                                        st.write(f"**{row[display_col]}** | {row['stok_kodu']} - {row['stok_tanim']}: ₺{row['fark_tutari']:,.0f}")
+                                        st.write(f"**{row[display_col]}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: ₺{row['fark_tutari']:,.0f}")
                                 else:
                                     st.warning("fark_tutari kolonu bulunamadı")
 
@@ -1899,7 +1899,7 @@ def main_app():
 
                                     st.markdown(f"**En Düşük Fire (En Negatif) - Top {limit}**")
                                     for row in result.to_dict('records'):
-                                        st.write(f"**{row[display_col]}** | {row['stok_kodu']} - {row['stok_tanim']}: ₺{row['fire_tutari']:,.0f}")
+                                        st.write(f"**{row[display_col]}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: ₺{row['fire_tutari']:,.0f}")
                                 else:
                                     st.warning("fire_tutari kolonu bulunamadı")
 
@@ -1911,7 +1911,7 @@ def main_app():
 
                                     st.markdown(f"**En Yüksek Sayım - Top {limit}**")
                                     for row in result.to_dict('records'):
-                                        st.write(f"**{row[display_col]}** | {row['stok_kodu']} - {row['stok_tanim']}: {row['envanter_sayisi']:,.0f} adet")
+                                        st.write(f"**{row[display_col]}** | {row['malzeme_kodu']} - {row['malzeme_tanimi']}: {row['envanter_sayisi']:,.0f} adet")
                                 else:
                                     st.warning("envanter_sayisi kolonu bulunamadı")
                 elif not st.session_state.get('encok_loaded', False):
