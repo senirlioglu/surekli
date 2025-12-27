@@ -2684,6 +2684,12 @@ def main_app():
                     elif risk_type == "📋 Sayım Disiplini":
                         st.caption("Sürekli envanter disiplini kontrolü - Meyve/Sebz, Et-Tavuk, Ekmek")
 
+                        # Disiplin değişikliği callback
+                        def on_disiplin_change():
+                            # Değişiklik olduğunda rerun tetikle
+                            if 'disiplin_last' in st.session_state:
+                                del st.session_state['disiplin_last']
+
                         # Ek selectbox'lar
                         col_disiplin, col_hafta = st.columns([2, 1])
                         with col_disiplin:
@@ -2692,9 +2698,12 @@ def main_app():
                                 "2️⃣ Eksik Sayım",
                                 "3️⃣ Ürün - Sıfır",
                                 "4️⃣ Ürün Grubu - Sıfır"
-                            ], key="disiplin_type_select")
+                            ], key="disiplin_type_select", on_change=on_disiplin_change)
                         with col_hafta:
-                            hafta = st.selectbox("📅 Hafta:", [1, 2, 3, 4], key="hafta_select")
+                            hafta = st.selectbox("📅 Hafta:", [1, 2, 3, 4], key="hafta_select", on_change=on_disiplin_change)
+
+                        # Disiplin container - her seçim için benzersiz
+                        st.session_state['disiplin_last'] = f"{disiplin_tipi}_{hafta}_{view_type}"
 
                         # Sürekli envanter ürünlerini filtrele (Meyve/Sebz, Et-Tavuk, Ekmek)
                         surekli_kosullar = ['Meyve/Sebz', 'Et-Tavuk', 'Ekmek']
@@ -2705,7 +2714,10 @@ def main_app():
                             st.warning("⚠️ 'depolama_kosulu' sütunu bulunamadı!")
 
                         if len(surekli_df) > 0:
-                            st.info(f"📊 Sürekli envanter: {surekli_df['magaza_kodu'].nunique()} mağaza, {surekli_df['malzeme_kodu'].nunique()} ürün")
+                            # Her disiplin tipi için benzersiz container
+                            disiplin_placeholder = st.empty()
+                            with disiplin_placeholder.container():
+                                st.info(f"📊 Sürekli envanter: {surekli_df['magaza_kodu'].nunique()} mağaza, {surekli_df['malzeme_kodu'].nunique()} ürün | 📋 {disiplin_tipi} | Hafta: {hafta}")
 
                             # ==================== 1. VAR/YOK ====================
                             if disiplin_tipi == "1️⃣ Var/Yok":
